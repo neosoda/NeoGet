@@ -1,0 +1,85 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  body {
+    @apply bg-light-bg dark:bg-dark-bg text-gray-900 dark:text-gray-50;
+    font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 600;
+  }
+
+  code, pre {
+    font-family: 'Fira Code', 'Source Code Pro', monospace;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-primary text-white rounded-lg font-semibold transition-all duration-200 hover:bg-primary-dark hover:shadow-lg active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-50 rounded-lg font-semibold transition-all duration-200 hover:bg-gray-300 dark:hover:bg-gray-600;
+  }
+
+  .btn-accent {
+    @apply px-6 py-3 bg-accent text-white rounded-lg font-semibold transition-all duration-200 hover:bg-accent-dark hover:shadow-lg active:scale-95;
+  }
+
+  .card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 p-6;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+
+  .badge-success {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full bg-success/20 text-success font-medium;
+  }
+
+  .badge-error {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full bg-error/20 text-error font-medium;
+  }
+
+  .badge-warning {
+    @apply inline-flex items-center gap-2 px-3 py-1 rounded-full bg-warning/20 text-warning font-medium;
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Animations personnalisées */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.1),
+    transparent
+  );
+  background-size: 1000px 100%;
+}

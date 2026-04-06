@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Tauri/Rust builds
+src-tauri/target/
+target/
+Cargo.lock
+
+# Build outputs
+dist/
+build/
+*.rlib
+*.rmeta
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# Environment
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+*.tmp
+
+# Keep releases/
+!releases/
+releases/*.exe.backup

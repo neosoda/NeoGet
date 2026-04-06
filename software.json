@@ -1,0 +1,150 @@
+{
+  "categories": [
+    {
+      "name": "Navigateurs Web",
+      "icon": "globe",
+      "color": "from-blue-500 to-blue-600",
+      "software": [
+        {"name": "Google Chrome", "package": "Google.Chrome", "description": "Navigateur web rapide et moderne"},
+        {"name": "Mozilla Firefox", "package": "Mozilla.Firefox", "description": "Navigateur open-source rapide"},
+        {"name": "Microsoft Edge", "package": "Microsoft.Edge", "description": "Navigateur performant Chromium"},
+        {"name": "Brave Browser", "package": "Brave.Brave", "description": "Navigation privée et sécurisée"},
+        {"name": "Opera", "package": "Opera.Opera", "description": "Navigateur avec VPN intégré"}
+      ]
+    },
+    {
+      "name": "Communication",
+      "icon": "message-circle",
+      "color": "from-purple-500 to-purple-600",
+      "software": [
+        {"name": "Discord", "package": "Discord.Discord", "description": "Chat vocale et communauté"},
+        {"name": "Zoom", "package": "Zoom.Zoom", "description": "Visioconférence en ligne"},
+        {"name": "Telegram", "package": "Telegram.TelegramDesktop", "description": "Messagerie instantanée"},
+        {"name": "Slack", "package": "Slack.Slack", "description": "Communication d'équipe"},
+        {"name": "Signal", "package": "OpenWhisperSystems.Signal", "description": "Messagerie sécurisée"}
+      ]
+    },
+    {
+      "name": "Multimédia",
+      "icon": "play-circle",
+      "color": "from-pink-500 to-pink-600",
+      "software": [
+        {"name": "VLC Media Player", "package": "VideoLAN.VLC", "description": "Lecteur vidéo universel"},
+        {"name": "Spotify", "package": "Spotify.Spotify", "description": "Musique en streaming"},
+        {"name": "Audacity", "package": "Audacity.Audacity", "description": "Éditeur audio open-source"},
+        {"name": "HandBrake", "package": "HandBrake.HandBrake", "description": "Encodeur vidéo gratuit"},
+        {"name": "OBS Studio", "package": "OBSProject.OBSStudio", "description": "Enregistrement et streaming"}
+      ]
+    },
+    {
+      "name": "Développement",
+      "icon": "code",
+      "color": "from-green-500 to-green-600",
+      "software": [
+        {"name": "Visual Studio Code", "package": "Microsoft.VisualStudioCode", "description": "Éditeur de code léger"},
+        {"name": "Git", "package": "Git.Git", "description": "Système de contrôle de version"},
+        {"name": "Node.js", "package": "OpenJS.NodeJS", "description": "Runtime JavaScript"},
+        {"name": "Python 3.12", "package": "Python.Python.3.12", "description": "Langage de programmation"},
+        {"name": "Docker Desktop", "package": "Docker.DockerDesktop", "description": "Plateforme de conteneurisation"},
+        {"name": "Postman", "package": "Postman.Postman", "description": "Client API pour tester les endpoints"},
+        {"name": "Notepad++", "package": "Notepad++.Notepad++", "description": "Éditeur texte avancé"},
+        {"name": "PuTTY", "package": "PuTTY.PuTTY", "description": "Client SSH et Telnet"},
+        {"name": "WSL 2", "package": "Microsoft.WSL", "description": "Windows Subsystem for Linux"}
+      ]
+    },
+    {
+      "name": "Langages & Runtimes",
+      "icon": "cpu",
+      "color": "from-orange-500 to-orange-600",
+      "software": [
+        {"name": "Java 21 JDK", "package": "EclipseAdoptium.Temurin.21.JDK", "description": "Plateforme Java"},
+        {"name": ".NET 8 SDK", "package": "Microsoft.DotNet.SDK.8", "description": "Framework C# et F#"},
+        {"name": "Go", "package": "GoLang.Go", "description": "Langage Go moderne"},
+        {"name": "Rust", "package": "Rustlang.Rust.MSVC", "description": "Langage Rust sûr"},
+        {"name": "Ruby", "package": "RubyInstallerTeam.Ruby", "description": "Langage Ruby"},
+        {"name": "PHP", "package": "PHP.PHP.8.2", "description": "PHP pour le web"}
+      ]
+    },
+    {
+      "name": "Bases de Données",
+      "icon": "database",
+      "color": "from-cyan-500 to-cyan-600",
+      "software": [
+        {"name": "MySQL Community", "package": "Oracle.MySQL", "description": "Base de données relationnelle"},
+        {"name": "PostgreSQL", "package": "PostgreSQL.PostgreSQL", "description": "Base de données avancée"},
+        {"name": "MongoDB", "package": "MongoDB.MongoDB.Community", "description": "Base de données NoSQL"}
+      ]
+    },
+    {
+      "name": "Design & Imagerie",
+      "icon": "palette",
+      "color": "from-red-500 to-red-600",
+      "software": [
+        {"name": "GIMP", "package": "GIMP.GIMP", "description": "Éditeur d'images gratuit"},
+        {"name": "Blender", "package": "BlenderFoundation.Blender", "description": "Suite 3D professionnelle"},
+        {"name": "Paint.NET", "package": "dotPDN.PaintDotNet", "description": "Éditeur d'images simple"},
+        {"name": "Inkscape", "package": "Inkscape.Inkscape", "description": "Éditeur vectoriel open-source"},
+        {"name": "ShareX", "package": "ShareX.ShareX", "description": "Capture d'écran et partage"},
+        {"name": "Krita", "package": "Krita.Krita", "description": "Peinture digitale gratuite"}
+      ]
+    },
+    {
+      "name": "Productivité",
+      "icon": "file-text",
+      "color": "from-yellow-500 to-yellow-600",
+      "software": [
+        {"name": "LibreOffice", "package": "TheDocumentFoundation.LibreOffice", "description": "Suite bureautique"},
+        {"name": "Notion", "package": "Notion.Notion", "description": "Notes et productivité all-in-one"},
+        {"name": "Obsidian", "package": "Obsidian.Obsidian", "description": "Gestionnaire de notes local"},
+        {"name": "SumatraPDF", "package": "SumatraPDF.SumatraPDF", "description": "Lecteur PDF léger"}
+      ]
+    },
+    {
+      "name": "Utilitaires",
+      "icon": "zap",
+      "color": "from-indigo-500 to-indigo-600",
+      "software": [
+        {"name": "7-Zip", "package": "7zip.7zip", "description": "Compression de fichiers"},
+        {"name": "Everything", "package": "voidtools.Everything", "description": "Moteur de recherche ultra-rapide"},
+        {"name": "PowerToys", "package": "Microsoft.PowerToys", "description": "Utilitaires Microsoft avancés"},
+        {"name": "WizTree", "package": "AntibodySoftware.WizTree", "description": "Analyse d'espace disque"},
+        {"name": "CCleaner", "package": "Piriform.CCleaner", "description": "Nettoyage système"},
+        {"name": "AutoRuns", "package": "Microsoft.Sysinternals.Autoruns", "description": "Gestionnaire de démarrage"}
+      ]
+    },
+    {
+      "name": "Sécurité",
+      "icon": "lock",
+      "color": "from-red-600 to-red-700",
+      "software": [
+        {"name": "Bitwarden", "package": "Bitwarden.Bitwarden", "description": "Gestionnaire de mots de passe"},
+        {"name": "ProtonVPN", "package": "Proton.ProtonVPN", "description": "VPN sécurisé"},
+        {"name": "GnuPG", "package": "GnuPG.GnuPG", "description": "Chiffrement de fichiers"},
+        {"name": "Malwarebytes", "package": "Malwarebytes.Malwarebytes", "description": "Protection contre malwares"},
+        {"name": "OpenSSL", "package": "ShiningLight.OpenSSL.Light", "description": "Cryptographie"}
+      ]
+    },
+    {
+      "name": "Gaming",
+      "icon": "gamepad-2",
+      "color": "from-teal-500 to-teal-600",
+      "software": [
+        {"name": "Steam", "package": "Valve.Steam", "description": "Plateforme de jeux numérique"},
+        {"name": "Epic Games Launcher", "package": "EpicGames.EpicGamesLauncher", "description": "Lanceur Epic Games"},
+        {"name": "GOG Galaxy", "package": "GOG.Galaxy", "description": "Plateforme GOG"}
+      ]
+    },
+    {
+      "name": "Stockage & Cloud",
+      "icon": "cloud",
+      "color": "from-blue-400 to-blue-500",
+      "software": [
+        {"name": "OneDrive", "package": "Microsoft.OneDrive", "description": "Cloud Microsoft"},
+        {"name": "Dropbox", "package": "Dropbox.Dropbox", "description": "Synchronisation fichiers"},
+        {"name": "Google Drive", "package": "Google.GoogleDrive", "description": "Cloud Google"},
+        {"name": "Nextcloud Client", "package": "Nextcloud.NextcloudDesktop", "description": "Cloud auto-hébergé"},
+        {"name": "AnyDesk", "package": "AnyDesk.AnyDesk", "description": "Accès distant"}
+      ]
+    }
+  ]
+}

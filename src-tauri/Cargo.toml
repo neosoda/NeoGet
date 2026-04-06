@@ -1,0 +1,30 @@
+[package]
+name = "neoget"
+version = "2.0.0"
+description = "Installateur de logiciels moderne pour Windows"
+authors = ["NeoGet Team"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = ["custom-protocol"] }
+tauri-plugin-log = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+chrono = "0.4"
+log = "0.4"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[[example]]
+name = "commands"
+path = "examples/commands.rs"
+
+[profile.release]
+opt-level = "z"
+lto = true
