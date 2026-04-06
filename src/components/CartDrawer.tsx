@@ -1,10 +1,6 @@
 import { motion } from 'framer-motion'
 import { ShoppingCart, Trash2, Zap, X } from 'lucide-react'
-
-interface CartItem {
-  id: string
-  name: string
-}
+import { CartItem } from '../types'
 
 interface CartDrawerProps {
   items: CartItem[]

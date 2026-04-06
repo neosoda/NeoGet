@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 use tokio::process::Command as TokioCommand;
-use std::os::windows::process::CommandExt;
 use tauri::{AppHandle, Emitter};
 use log::{info, error, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // Flag Windows pour ne pas créer de fenêtre de console
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+static IS_INSTALLING: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Software {
@@ -56,6 +58,12 @@ pub async fn get_software_list() -> Result<Vec<Software>, String> {
 
 #[tauri::command]
 pub async fn install_software(id: String, name: String) -> Result<String, String> {
+    // Si appelé individuellement, on prend le lock temporairement
+    let was_installing = IS_INSTALLING.swap(true, Ordering::SeqCst);
+    if was_installing {
+        return Err("Une installation est déjà en cours. Veuillez patienter.".to_string());
+    }
+
     info!("Tentative d'installation de {} (ID: {})", name, id);
     
     let mut cmd = TokioCommand::new("winget");
@@ -63,6 +71,67 @@ pub async fn install_software(id: String, name: String) -> Result<String, String
             "install",
             "--id",
             &id,
+            "--exact",
+            "--accept-package-agreements",
+            "--accept-source-agreements",
+            "--silent",
+            "--force",
+        ]);
+    
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await;
+    
+    IS_INSTALLING.store(false, Ordering::SeqCst);
+
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+
+            if out.status.success() {
+                info!("Installation réussie : {}", name);
+                Ok(format!("{} a été installé avec succès.", name))
+            } else {
+                if stdout.contains("Un package existant a déjà été installé") || 
+                   stdout.contains("Mise à niveau disponible introuvable") {
+                    warn!("{} est déjà installé et à jour.", name);
+                    return Ok(format!("{} est déjà installé et à jour.", name));
+                }
+
+                if stdout.contains("0x80070005") || stderr.contains("0x80070005") || 
+                   stdout.contains("administrateur") || stderr.contains("administrateur") {
+                    error!("Erreur de privilèges lors de l'installation de {}", name);
+                    return Err(format!("Erreur de privilèges : Veuillez relancer NeoGet en tant qu'administrateur pour installer {}.", name));
+                }
+
+                error!("Échec de l'installation de {} (Code: {})", name, out.status.code().unwrap_or(-1));
+                Err(format!(
+                    "Échec de l'installation de {} (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+                    name,
+                    out.status.code().unwrap_or(-1),
+                    stdout,
+                    stderr
+                ))
+            }
+        }
+        Err(e) => {
+            error!("Erreur système WinGet pour {} : {}", name, e);
+            Err(format!("Erreur système lors de l'appel à WinGet : {}", e))
+        }
+    }
+}
+
+// Fonction interne sans lock pour le batch
+async fn install_software_internal(id: &str, name: &str) -> Result<String, String> {
+    info!("Tentative d'installation de {} (ID: {})", name, id);
+    
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(&[
+            "install",
+            "--id",
+            id,
             "--exact",
             "--accept-package-agreements",
             "--accept-source-agreements",
@@ -115,6 +184,11 @@ pub async fn install_software(id: String, name: String) -> Result<String, String
 
 #[tauri::command]
 pub async fn install_software_batch(app: AppHandle, items: Vec<BatchItem>) -> Result<String, String> {
+    let was_installing = IS_INSTALLING.swap(true, Ordering::SeqCst);
+    if was_installing {
+        return Err("Une installation est déjà en cours. Veuillez patienter.".to_string());
+    }
+
     info!("Lancement d'une installation groupée (batch) pour {} logiciels", items.len());
     
     tauri::async_runtime::spawn(async move {
@@ -139,8 +213,8 @@ pub async fn install_software_batch(app: AppHandle, items: Vec<BatchItem>) -> Re
             // Émettre le début de l'installation pour ce logiciel
             let _ = app.emit("installation-progress", &payload);
             
-            // Exécution réelle
-            let result = install_software(item.id.clone(), item.name.clone()).await;
+            // Exécution réelle via la fonction interne
+            let result = install_software_internal(&item.id, &item.name).await;
             
             if let Err(e) = result {
                 error!("Erreur lors du traitement batch de {} : {}", item.name, e);
@@ -172,6 +246,9 @@ pub async fn install_software_batch(app: AppHandle, items: Vec<BatchItem>) -> Re
             error: None,
         };
         let _ = app.emit("installation-progress", &final_payload);
+        
+        // Libérer le lock
+        IS_INSTALLING.store(false, Ordering::SeqCst);
     });
     
     Ok("Batch lancé en arrière-plan".to_string())
@@ -181,7 +258,7 @@ pub async fn install_software_batch(app: AppHandle, items: Vec<BatchItem>) -> Re
 pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     info!("Recherche WinGet pour : '{}'", query);
     let mut cmd = TokioCommand::new("winget");
-    cmd.args(&["search", &query]);
+    cmd.args(&["search", &query, "--accept-source-agreements"]);
     
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -200,27 +277,30 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
         return Ok(results);
     }
 
-    let header = lines[0];
-    let id_idx = header.find("Id").unwrap_or(30);
-    let version_idx = header.find("Version").unwrap_or(60);
-    let source_idx = header.find("Source").unwrap_or(80);
+    // Dynamic column parsing to avoid breaking on localized Windows versions
+    let header = lines[0].to_lowercase();
+    let id_idx = header.find("id").unwrap_or(30);
+    let version_idx = header.find("version").unwrap_or(60);
+    let source_idx = header.find("source").unwrap_or(80);
 
     for line in lines.iter().skip(2) {
         if line.trim().is_empty() || line.starts_with('-') { continue; }
         
-        let len = line.len();
-        let name = if len > id_idx { &line[..id_idx] } else { line }.trim().to_string();
-        let id = if len > id_idx {
-            if len > version_idx { &line[id_idx..version_idx] } else { &line[id_idx..] }
-        } else { "" }.trim().to_string();
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
         
-        let version = if len > version_idx {
-            if len > source_idx { &line[version_idx..source_idx] } else { &line[version_idx..] }
-        } else { "" }.trim().to_string();
-        
-        let source = if len > source_idx { &line[source_idx..] } else { "" }.trim().to_string();
+        let safe_slice = |start: usize, end: usize| -> String {
+            if start >= len { return String::new(); }
+            let actual_end = std::cmp::min(end, len);
+            chars[start..actual_end].iter().collect::<String>().trim().to_string()
+        };
 
-        if !id.is_empty() {
+        let name = safe_slice(0, id_idx);
+        let id = safe_slice(id_idx, version_idx);
+        let version = safe_slice(version_idx, source_idx);
+        let source = safe_slice(source_idx, len);
+
+        if !id.is_empty() && !id.contains("...") {
             results.push(WinGetResult { name, id, version, source });
         }
     }
@@ -247,7 +327,7 @@ pub async fn check_winget() -> Result<bool, String> {
     match output {
         Ok(out) => {
             let res = String::from_utf8_lossy(&out.stdout);
-            let is_present = res.trim() == "true";
+            let is_present = res.trim().eq_ignore_ascii_case("true");
             if is_present {
                 info!("WinGet est présent sur le système.");
             } else {
@@ -264,14 +344,21 @@ pub async fn check_winget() -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn install_winget() -> Result<String, String> {
-    info!("Début de l'installation automatique de WinGet...");
+    info!("Début de l'installation automatique de WinGet via GitHub API...");
     let script = r#"
 $ProgressPreference = 'SilentlyContinue'
-$url = 'https://github.com/microsoft/winget-cli/releases/download/v1.6.3231/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-$tempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'winget.msixbundle')
-Invoke-WebRequest -Uri $url -OutFile $tempFile
-Add-AppxPackage -Path $tempFile -ForceApplicationShutdown
-Remove-Item $tempFile -ErrorAction SilentlyContinue
+try {
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+    $msixUrl = ($response.assets | Where-Object { $_.name -like "*.msixbundle" })[0].browser_download_url
+    if (-not $msixUrl) { throw "Impossible de trouver l'URL de téléchargement" }
+    $tempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'winget.msixbundle')
+    Invoke-WebRequest -Uri $msixUrl -OutFile $tempFile
+    Add-AppxPackage -Path $tempFile -ForceApplicationShutdown
+    Remove-Item $tempFile -ErrorAction SilentlyContinue
+    Write-Output "SUCCESS"
+} catch {
+    Write-Error $_.Exception.Message
+}
 "#;
 
     let mut cmd = TokioCommand::new("powershell");
@@ -284,18 +371,19 @@ Remove-Item $tempFile -ErrorAction SilentlyContinue
 
     match output {
         Ok(out) => {
-            if out.status.success() {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            if stdout.contains("SUCCESS") {
                 info!("Installation de WinGet réussie.");
-                Ok("WinGet a été installé avec succès.".to_string())
+                Ok("WinGet a été installé avec succès à la dernière version.".to_string())
             } else {
                 let err_str = String::from_utf8_lossy(&out.stderr);
                 error!("Échec de l'installation de WinGet : {}", err_str);
-                Err(format!("Erreur d'installation de WinGet : {}", err_str))
+                Err(format!("Erreur d'installation : {}", err_str))
             }
         }
         Err(e) => {
             error!("Erreur système lors de l'installation de WinGet : {}", e);
-            Err(format!("Erreur système lors de l'installation de WinGet : {}", e))
+            Err(format!("Erreur système : {}", e))
         },
     }
 }

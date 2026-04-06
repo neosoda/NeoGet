@@ -1,169 +1,29 @@
-import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle } from 'lucide-react'
 import Header from './components/Header'
 import SoftwareGrid from './components/SoftwareGrid'
 import InstallationOverlay from './components/InstallationOverlay'
 import CartDrawer from './components/CartDrawer'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 
-interface CartItem {
-  id: string
-  name: string
-}
-
-interface ProgressPayload {
-  current_index: number
-  total: number
-  current_name: string
-  message: string
-  is_finished: boolean
-  error: string | null
-}
+import { useTheme } from './hooks/useTheme'
+import { useSystemStatus } from './hooks/useSystemStatus'
+import { useCart } from './hooks/useCart'
+import { useInstallation } from './hooks/useInstallation'
 
 function App() {
-  const [darkMode, setDarkMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('darkMode') === 'true' ||
-        window.matchMedia('(prefers-color-scheme: dark)').matches
-    }
-    return false
-  })
-
-  const [wingetInstalled, setWingetInstalled] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(true)
-  const [installing, setInstalling] = useState(false)
-  const [batchStatus, setBatchStatus] = useState<ProgressPayload | null>(null)
-  const [loading, _setLoading] = useState<Set<string>>(new Set())
-  const [cart, setCart] = useState<CartItem[]>([])
-
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const isInstalled = await invoke<boolean>('check_winget')
-        setWingetInstalled(isInstalled)
-        
-        const adminStatus = await invoke<boolean>('is_admin')
-        setIsAdmin(adminStatus)
-      } catch (e) {
-        console.error("Erreur check status:", e)
-      }
-    }
-    checkStatus()
-
-    // Écouter les progrès de l'installation batch
-    const unlisten = listen<ProgressPayload>('installation-progress', (event) => {
-      setBatchStatus(event.payload)
-    })
-
-    return () => {
-      unlisten.then(f => f())
-    }
-  }, [])
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', darkMode)
-    localStorage.setItem('darkMode', String(darkMode))
-  }, [darkMode])
-
-  const handleInstallWinget = async () => {
-    setInstalling(true)
-    setBatchStatus({
-      current_index: 0,
-      total: 1,
-      current_name: 'WinGet',
-      message: 'Téléchargement et installation...',
-      is_finished: false,
-      error: null
-    })
-    try {
-      const result = await invoke<string>('install_winget')
-      setBatchStatus({
-        current_index: 1,
-        total: 1,
-        current_name: 'WinGet',
-        message: result,
-        is_finished: true,
-        error: null
-      })
-      setWingetInstalled(true)
-    } catch (e) {
-      setBatchStatus(prev => prev ? { ...prev, error: String(e), is_finished: true } : null)
-    }
-  }
-
-  const handleAddToCart = (item: CartItem) => {
-    if (!cart.some(i => i.id === item.id)) {
-      setCart([...cart, item])
-    }
-  }
-
-  const handleRemoveFromCart = (id: string) => {
-    setCart(cart.filter(item => item.id !== id))
-  }
-
-  const handleClearCart = () => setCart([])
-
-  const handleInstallSoftware = async (id: string, name: string) => {
-    console.info(`[App] Lancement installation individuelle : ${name} (${id})`)
-    setInstalling(true)
-    setBatchStatus({
-      current_index: 0,
-      total: 1,
-      current_name: name,
-      message: `Installation de ${name}...`,
-      is_finished: false,
-      error: null
-    })
-    
-    try {
-      const result = await invoke<string>('install_software', { id, name })
-      console.info(`[App] Résultat installation ${name} :`, result)
-      setBatchStatus({
-        current_index: 1,
-        total: 1,
-        current_name: name,
-        message: result,
-        is_finished: true,
-        error: null
-      })
-    } catch (e) {
-      console.error(`[App] Erreur installation ${name} :`, e)
-      setBatchStatus(prev => prev ? { ...prev, error: String(e), is_finished: true } : null)
-    }
-  }
-
-  const handleInstallBatch = async () => {
-    if (cart.length === 0) return
-    
-    console.info(`[App] Lancement installation batch pour ${cart.length} logiciels`)
-    setInstalling(true)
-    setBatchStatus({
-      current_index: 0,
-      total: cart.length,
-      current_name: 'Préparation...',
-      message: `Lancement de l'installation de ${cart.length} logiciels...`,
-      is_finished: false,
-      error: null
-    })
-
-    try {
-      const result = await invoke('install_software_batch', { items: cart })
-      console.info('[App] Batch lancé avec succès :', result)
-      // Le statut sera mis à jour via les événements listen()
-      setCart([]) // Vider le panier après lancement
-    } catch (e) {
-      console.error('[App] Échec du lancement du batch :', e)
-      setBatchStatus(prev => prev ? { ...prev, error: String(e), is_finished: true } : null)
-    }
-  }
-
-  const toggleTheme = () => {
-    const next = !darkMode
-    console.debug(`[App] Changement de thème : ${next ? 'Sombre' : 'Clair'}`)
-    setDarkMode(next)
-  }
+  const { darkMode, toggleTheme } = useTheme()
+  const { wingetInstalled, isAdmin, installWinget } = useSystemStatus()
+  const { cart, handleAddToCart, handleRemoveFromCart, handleClearCart } = useCart()
+  const { 
+    installing, 
+    batchStatus, 
+    loading,
+    setInstalling, 
+    setBatchStatus, 
+    handleInstallSoftware, 
+    handleInstallBatch, 
+    closeOverlay 
+  } = useInstallation(handleClearCart)
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg transition-colors duration-300">
@@ -229,7 +89,7 @@ function App() {
                 </div>
               </div>
               <button
-                onClick={handleInstallWinget}
+                onClick={() => installWinget(setBatchStatus, setInstalling)}
                 className="btn-accent"
               >
                 Installer WinGet
@@ -277,7 +137,7 @@ function App() {
             items={cart}
             onRemove={handleRemoveFromCart}
             onClear={handleClearCart}
-            onInstall={handleInstallBatch}
+            onInstall={() => handleInstallBatch(cart)}
           />
         )}
       </AnimatePresence>
@@ -285,10 +145,7 @@ function App() {
       {/* Installation Overlay */}
       {installing && (
         <InstallationOverlay
-          onClose={() => {
-            setInstalling(false)
-            setBatchStatus(null)
-          }}
+          onClose={closeOverlay}
           batchStatus={batchStatus}
         />
       )}

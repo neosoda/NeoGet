@@ -11,6 +11,7 @@ Cargo.lock
 # Build outputs
 dist/
 build/
+*.tsbuildinfo
 *.rlib
 *.rmeta
 

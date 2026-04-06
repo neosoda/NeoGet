@@ -1,14 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, X, AlertCircle } from 'lucide-react'
-
-interface ProgressPayload {
-  current_index: number
-  total: number
-  current_name: string
-  message: string
-  is_finished: boolean
-  error: string | null
-}
+import { ProgressPayload } from '../types'
 
 interface InstallationOverlayProps {
   onClose: () => void

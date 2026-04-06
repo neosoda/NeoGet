@@ -3,31 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Download, Search, Filter, Globe, PackageOpen, Plus, Minus, Check } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import softwareData from '../../software.json'
-
-interface Software {
-  name: string
-  package: string
-  description: string
-}
-
-interface Category {
-  name: string
-  icon: string
-  color: string
-  software: Software[]
-}
-
-interface WinGetResult {
-  name: string
-  id: string
-  version: string
-  source: string
-}
-
-interface CartItem {
-  id: string
-  name: string
-}
+import { Category, WinGetResult, CartItem } from '../types'
 
 interface SoftwareGridProps {
   darkMode?: boolean
