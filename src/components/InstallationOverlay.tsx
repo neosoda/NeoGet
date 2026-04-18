@@ -10,7 +10,9 @@ interface InstallationOverlayProps {
 export default function InstallationOverlay({ onClose, batchStatus }: InstallationOverlayProps) {
   if (!batchStatus) return null
 
-  const progress = (batchStatus.current_index / batchStatus.total) * 100
+  const progress = batchStatus.total > 0
+    ? Math.min(100, Math.max(0, (batchStatus.current_index / batchStatus.total) * 100))
+    : 0
 
   return (
     <AnimatePresence>

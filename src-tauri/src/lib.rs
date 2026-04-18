@@ -10,16 +10,18 @@ pub fn run() {
     log_path.push("logs"); // Ajoute le dossier 'logs'
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_log::Builder::new()
-            .targets([
-                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
-                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
-                    path: log_path,
-                    file_name: None,
-                }),
-                tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
-            ])
-            .build())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                        path: log_path,
+                        file_name: None,
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                ])
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             commands::get_software_list,
             commands::install_software,

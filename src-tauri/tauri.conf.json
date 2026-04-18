@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' asset: tauri: https://asset.localhost; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' asset: data: blob:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost http://localhost:5173 ws://localhost:5173"
     }
   },
   "bundle": {

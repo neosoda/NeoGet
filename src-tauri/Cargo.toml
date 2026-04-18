@@ -21,10 +21,6 @@ log = "0.4"
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
-[[example]]
-name = "commands"
-path = "examples/commands.rs"
-
 [profile.release]
 opt-level = "z"
 lto = true

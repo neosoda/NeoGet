@@ -77,21 +77,81 @@ pub struct ProgressPayload {
     pub error: Option<String>,
 }
 
-fn already_installed_output(output: &str) -> bool {
-    output.contains("un package existant a deja ete installe")
-        || output.contains("un package existant a déjà été installé")
-        || output.contains("mise a niveau disponible introuvable")
-        || output.contains("mise à niveau disponible introuvable")
-        || output.contains("found an existing package already installed")
-        || output.contains("no applicable upgrade found")
-        || output.contains("no newer package versions are available")
+fn normalize_for_match(input: &str) -> String {
+    input
+        .to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'à' | 'â' | 'ä' | 'á' | 'ã' => 'a',
+            'ç' => 'c',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'î' | 'ï' | 'ì' | 'í' => 'i',
+            'ô' | 'ö' | 'ò' | 'ó' => 'o',
+            'ù' | 'û' | 'ü' | 'ú' => 'u',
+            _ => c,
+        })
+        .collect()
 }
 
-fn privilege_error_output(output: &str) -> bool {
-    output.contains("0x80070005")
-        || output.contains("administrateur")
-        || output.contains("administrator")
-        || output.contains("access is denied")
+fn already_installed_output(normalized_output: &str) -> bool {
+    normalized_output.contains("un package existant a deja ete installe")
+        || normalized_output.contains("mise a niveau disponible introuvable")
+        || normalized_output.contains("found an existing package already installed")
+        || normalized_output.contains("no applicable upgrade found")
+        || normalized_output.contains("no newer package versions are available")
+}
+
+fn privilege_error_output(normalized_output: &str) -> bool {
+    normalized_output.contains("0x80070005")
+        || normalized_output.contains("administrateur")
+        || normalized_output.contains("administrator")
+        || normalized_output.contains("access is denied")
+}
+
+fn build_batch_final_payload(
+    total: usize,
+    success_count: usize,
+    failed_names: &[String],
+) -> ProgressPayload {
+    let failure_count = failed_names.len();
+    let (current_name, message, error) = if failure_count == 0 {
+        (
+            "Termine".to_string(),
+            "Toutes les installations sont terminees !".to_string(),
+            None,
+        )
+    } else {
+        let listed = failed_names
+            .iter()
+            .take(5)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(", ");
+        let remaining = failure_count.saturating_sub(5);
+        let suffix = if remaining > 0 {
+            format!(" (+{} autre(s))", remaining)
+        } else {
+            String::new()
+        };
+
+        (
+            "Termine avec erreurs".to_string(),
+            format!(
+                "Installations terminees: {} succes, {} echec(s).",
+                success_count, failure_count
+            ),
+            Some(format!("Echecs: {}{}", listed, suffix)),
+        )
+    };
+
+    ProgressPayload {
+        current_index: total,
+        total,
+        current_name,
+        message,
+        is_finished: true,
+        error,
+    }
 }
 
 async fn run_command_with_timeout(
@@ -149,19 +209,19 @@ async fn run_winget_install(id: &str, name: &str) -> Result<String, String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let merged_lower = format!("{}\n{}", stdout, stderr).to_lowercase();
+    let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
 
     if output.status.success() {
         info!("Installation reussie : {}", name);
         return Ok(format!("{} a ete installe avec succes.", name));
     }
 
-    if already_installed_output(&merged_lower) {
+    if already_installed_output(&normalized_output) {
         warn!("{} est deja installe et a jour.", name);
         return Ok(format!("{} est deja installe et a jour.", name));
     }
 
-    if privilege_error_output(&merged_lower) {
+    if privilege_error_output(&normalized_output) {
         error!("Erreur de privileges lors de l'installation de {}", name);
         return Err(format!(
             "Erreur de privileges : relancez NeoGet en tant qu'administrateur pour installer {}.",
@@ -271,48 +331,12 @@ pub async fn install_software_batch(
         }
 
         let failure_count = failed_names.len();
-        let (current_name, message, error) = if failure_count == 0 {
-            (
-                "Termine".to_string(),
-                "Toutes les installations sont terminees !".to_string(),
-                None,
-            )
-        } else {
-            let listed = failed_names
-                .iter()
-                .take(5)
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
-            let remaining = failure_count.saturating_sub(5);
-            let suffix = if remaining > 0 {
-                format!(" (+{} autre(s))", remaining)
-            } else {
-                String::new()
-            };
-
-            (
-                "Termine avec erreurs".to_string(),
-                format!(
-                    "Installations terminees: {} succes, {} echec(s).",
-                    success_count, failure_count
-                ),
-                Some(format!("Echecs: {}{}", listed, suffix)),
-            )
-        };
-
         info!(
             "Fin du batch: {} succes, {} echec(s)",
             success_count, failure_count
         );
-        let final_payload = ProgressPayload {
-            current_index: total,
-            total,
-            current_name,
-            message,
-            is_finished: true,
-            error,
-        };
+
+        let final_payload = build_batch_final_payload(total, success_count, &failed_names);
         let _ = app.emit("installation-progress", &final_payload);
     });
 
@@ -507,5 +531,99 @@ pub async fn is_admin() -> Result<bool, String> {
             error!("Erreur lors de la verification des droits Admin : {}", e);
             Ok(false)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_for_match_removes_common_accents() {
+        let normalized =
+            normalize_for_match("d\u{00E9}j\u{00E0} install\u{00E9}, acc\u{00E8}s refus\u{00E9}");
+        assert_eq!(normalized, "deja installe, acces refuse");
+    }
+
+    #[test]
+    fn already_installed_output_matches_known_signatures() {
+        assert!(already_installed_output(
+            "un package existant a deja ete installe"
+        ));
+        assert!(already_installed_output(
+            "found an existing package already installed"
+        ));
+        assert!(!already_installed_output(
+            "installation started successfully"
+        ));
+    }
+
+    #[test]
+    fn privilege_error_output_matches_known_signatures() {
+        assert!(privilege_error_output("0x80070005"));
+        assert!(privilege_error_output("access is denied"));
+        assert!(privilege_error_output("droits administrateur requis"));
+        assert!(!privilege_error_output("operation completed"));
+    }
+
+    #[test]
+    fn installing_guard_blocks_parallel_and_releases() {
+        IS_INSTALLING.store(false, Ordering::SeqCst);
+        let first = InstallingGuard::acquire().expect("first lock should succeed");
+        assert!(InstallingGuard::acquire().is_err());
+        drop(first);
+        assert!(InstallingGuard::acquire().is_ok());
+        IS_INSTALLING.store(false, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn build_batch_final_payload_success_path() {
+        let failed: Vec<String> = vec![];
+        let payload = build_batch_final_payload(3, 3, &failed);
+        assert_eq!(payload.current_index, 3);
+        assert_eq!(payload.total, 3);
+        assert!(payload.is_finished);
+        assert!(payload.error.is_none());
+        assert_eq!(payload.current_name, "Termine");
+    }
+
+    #[test]
+    fn build_batch_final_payload_failure_path() {
+        let failed = vec!["PkgA".to_string(), "PkgB".to_string()];
+        let payload = build_batch_final_payload(4, 2, &failed);
+        assert_eq!(payload.current_index, 4);
+        assert_eq!(payload.total, 4);
+        assert!(payload.is_finished);
+        assert!(payload.error.is_some());
+        assert_eq!(payload.current_name, "Termine avec erreurs");
+        assert!(payload.message.contains("2 succes, 2 echec(s)"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn run_command_with_timeout_reports_timeout() {
+        let mut cmd = TokioCommand::new("powershell");
+        cmd.args([
+            "-NoProfile",
+            "-Command",
+            "Start-Sleep -Seconds 2; Write-Output 'done'",
+        ]);
+
+        let result = run_command_with_timeout(&mut cmd, Duration::from_millis(100), "test");
+        let error = result.await.expect_err("command should timeout");
+        assert!(error.contains("Timeout"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn run_command_with_timeout_allows_fast_command() {
+        let mut cmd = TokioCommand::new("powershell");
+        cmd.args(["-NoProfile", "-Command", "Write-Output 'ok'"]);
+
+        let output = run_command_with_timeout(&mut cmd, Duration::from_secs(5), "test")
+            .await
+            .expect("command should complete");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.to_lowercase().contains("ok"));
     }
 }

@@ -11,11 +11,17 @@ export function useSystemStatus() {
       try {
         const isInstalled = await invoke<boolean>('check_winget')
         setWingetInstalled(isInstalled)
-        
+      } catch (e) {
+        console.error("Erreur check status:", e)
+        setWingetInstalled(false)
+      }
+
+      try {
         const adminStatus = await invoke<boolean>('is_admin')
         setIsAdmin(adminStatus)
       } catch (e) {
-        console.error("Erreur check status:", e)
+        console.error("Erreur check admin:", e)
+        setIsAdmin(false)
       }
     }
     checkStatus()
@@ -43,6 +49,7 @@ export function useSystemStatus() {
       })
       setWingetInstalled(true)
     } catch (e) {
+      setWingetInstalled(false)
       setBatchStatus(prev => prev ? { ...prev, error: String(e), is_finished: true } : null)
     }
   }
