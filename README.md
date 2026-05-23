@@ -1,138 +1,152 @@
-# NeoGet v2.0 — Installateur de logiciels moderne
+# NeoGet
 
-**Application Windows ultra-moderne pour installer vos logiciels en un clic.**
+**L'installateur Windows qui transforme une machine fraîche en poste prêt à travailler.**
 
+NeoGet réunit le catalogue WinGet, une interface moderne et des actions groupées dans une app Tauri légère. On cherche, on choisit, on installe, on met à jour, on désinstalle. Sans terminal, sans copier-coller de commandes, sans perdre le fil.
+
+```text
+Frontend  React 19 + TypeScript + Tailwind CSS
+Desktop   Tauri 2 + Rust
+Package   Microsoft WinGet
+Build     Vite + Cargo
+Sortie    releases/neoget.exe (~5.7 MiB)
 ```
-Frontend:  React 19 + TypeScript + Tailwind CSS
-Backend:   Tauri 2.0 (Rust)
-Build:     Vite + Cargo
-Size:      6.2 MB (standalone executable)
+
+## Pourquoi NeoGet ?
+
+Installer un nouveau PC Windows devrait prendre quelques minutes, pas un après-midi. NeoGet sert de cockpit simple pour les tâches que l'on répète tout le temps :
+
+- préparer une installation Windows avec un Starter Pack d'outils essentiels ;
+- rechercher n'importe quel paquet disponible sur WinGet ;
+- installer plusieurs logiciels en une seule file d'attente ;
+- voir les applications déjà installées ;
+- détecter les mises à jour disponibles ;
+- lancer une désinstallation propre ;
+- exporter ou importer une configuration de logiciels.
+
+## Aperçu
+
+NeoGet propose une navigation claire par vues :
+
+| Vue | Rôle |
+| --- | --- |
+| Starter Pack | Catalogue sélectionné pour démarrer vite après une installation Windows |
+| Recherche WinGet | Recherche globale dans les dépôts WinGet officiels |
+| Mises à jour | Détection et mise à jour des logiciels obsolètes |
+| Mes Logiciels | Inventaire des applications installées et désinstallation |
+| System Doctor | Diagnostic rapide de l'environnement Windows et WinGet |
+| Paramètres | Sources, catalogue personnalisé et réglages |
+
+## Démarrage rapide
+
+### Utiliser l'application
+
+```powershell
+.\releases\neoget.exe
 ```
 
----
+WinGet doit être disponible sur la machine. NeoGet peut aider à diagnostiquer l'état de WinGet depuis l'onglet System Doctor.
 
-## 🚀 Démarrage rapide
+### Lancer en développement
 
-### Option 1 : Lancer directement l'exe
-```bash
+```powershell
+npm install
+npm run tauri:dev
+```
+
+### Compiler l'exécutable
+
+```powershell
+npm run build
+cd src-tauri
+cargo build --release
+```
+
+L'exécutable compilé est ensuite copié dans :
+
+```text
 releases/neoget.exe
 ```
 
-### Option 2 : Développer
-```bash
-npm install
-npm run tauri:dev
-```
+## Scripts utiles
 
-### Option 3 : Recompiler
-```bash
-npm run tauri:build
-```
+| Commande | Description |
+| --- | --- |
+| `npm run dev` | Lance uniquement le frontend Vite |
+| `npm run build` | Compile TypeScript et génère le frontend production |
+| `npm run tauri:dev` | Lance l'app desktop en développement |
+| `npm run tauri:nowatch` | Lance Tauri sans watcher |
+| `npm run tauri:build` | Build Tauri complet selon la configuration locale |
+| `cargo test` | Lance les tests Rust depuis `src-tauri` |
 
----
+## Architecture
 
-## 📁 Structure du projet
-
-```
+```text
 NeoGet/
-├── releases/
-│   └── neoget.exe              ← 🎉 Application compilée (6.2 MB)
-│
-├── src/                        ← Frontend React
-│   ├── main.tsx
-│   ├── App.tsx
-│   ├── index.css
-│   └── components/
-│       ├── Header.tsx
-│       ├── SoftwareGrid.tsx
-│       └── InstallationOverlay.tsx
-│
-├── src-tauri/                  ← Backend Tauri/Rust
-│   ├── src/
-│   │   ├── main.rs              # Point d'entrée
-│   │   ├── lib.rs               # Configuration du runtime
-│   │   └── commands.rs          # Logique d'installation (Rust)
-│   ├── tauri.conf.json          # Configuration Tauri
-│   └── Cargo.toml               # Dépendances Rust
-│
-├── docs/                       ← Documentation technique
-│   ├── ARCHITECTURE.md         # Architecture v2.0
-│   ├── SETUP.md                # Guide d'installation dev
-│   └── ...
-│
-└── Configuration Files
-    ├── package.json            # Dépendances npm
-    ├── vite.config.ts          # Build Vite
-    ├── tailwind.config.js      # Design tokens
-    └── tsconfig.json           # TypeScript config
+├── src/                  Interface React
+│   ├── App.tsx           Shell principal, navigation et workflows
+│   ├── components/       Vues, cartes, overlay d'installation, toasts
+│   ├── hooks/            Panier, installation, thème, statut système
+│   └── types.ts          Contrats TypeScript partagés côté UI
+├── src-tauri/            Backend desktop Rust/Tauri
+│   ├── src/commands.rs   Commandes WinGet, parsing, install/update/uninstall
+│   ├── src/lib.rs        Configuration Tauri et plugins
+│   └── tauri.conf.json   Fenêtre, sécurité, build desktop
+├── software.json         Catalogue Starter Pack
+├── docs/                 Documentation technique
+└── releases/             Exécutable prêt à lancer
 ```
 
----
+Le frontend reste concentré sur l'expérience utilisateur. Le backend Rust exécute les commandes système, applique les timeouts, parse les sorties WinGet et renvoie des données propres à l'interface.
 
-## 🎨 Features
+## Points forts
 
-✅ **Modern UI** — React 19 avec animations fluides (Framer Motion)  
-✅ **Batch Install** — Installation multiple avec barre de progression  
-✅ **Dark Mode** — Toggle intégré avec persistence (localStorage)  
-✅ **Lightweight** — Exécutable autonome de ~6MB  
-✅ **Search** — Recherche globale via les dépôts WinGet  
-✅ **Safety** — Orchestration Rust sécurisée sans dépendances externes  
+- Interface desktop fluide avec React, Tailwind et Framer Motion.
+- File d'installation groupée avec suivi de progression.
+- Recherche WinGet globale avec normalisation des résultats.
+- Inventaire des logiciels installés et centre de mises à jour.
+- Panier d'installation, import/export de configuration et notifications.
+- Diagnostic WinGet intégré pour repérer vite les soucis de sources ou de droits.
+- Exécutable Windows autonome, sans serveur local à lancer.
 
----
+## Qualité et sécurité
 
-## 🔧 Développement
+NeoGet garde une surface simple :
 
-### Installation dépendances (une seule fois)
-```bash
-npm install
+- les actions système passent par des commandes Tauri déclarées ;
+- les installations sont protégées contre les exécutions concurrentes ;
+- les processus WinGet ont des timeouts ;
+- les erreurs de privilèges sont reformulées pour l'utilisateur ;
+- les sorties WinGet localisées sont parsées avec tolérance.
+
+Avant une livraison, vérifiez au minimum :
+
+```powershell
+npm run build
+cd src-tauri
+cargo test
+cargo build --release
 ```
 
-### Mode développement (hot-reload)
-```bash
-npm run tauri:dev
-```
+## Roadmap
 
-### Build production
-```bash
-npm run tauri:build
-# Crée: releases/neoget.exe
-```
+- Historique local des installations, mises à jour et désinstallations.
+- Profils réutilisables pour préparer différents types de machines.
+- Export plus riche avec versions, sources et statut d'installation.
+- Meilleure expérience de catalogue personnalisé.
+- Signature et packaging installable lorsque la distribution sera stabilisée.
 
----
+## Documentation
 
-## 📊 Tech Stack
+- [Architecture](docs/ARCHITECTURE.md)
+- [Installation développeur](docs/SETUP.md)
+- [Design system](docs/DESIGN_SYSTEM.md)
+- [Changelog](docs/CHANGELOG.md)
 
-| Composant | Technologie |
-|-----------|------------|
-| **Frontend** | React 19 + TypeScript |
-| **Styling** | Tailwind CSS 3.4 |
-| **Animations** | Framer Motion 11 |
-| **UI Framework** | Tauri 2.0 |
-| **Backend** | Rust (Tokio) |
-| **Installer** | Microsoft WinGet |
-
----
-
-## 🎯 Roadmap v2.x
-
-1. **Auto-updates** — Mise à jour automatique de l'application via Tauri updater.
-2. **Historique** — Journal local des installations réussies/échouées.
-3. **Export/Import** — Sauvegarder et restaurer sa liste de logiciels.
-4. **Custom Sources** — Support de sources WinGet personnalisées.
-
----
-
-## 📚 Documentation
-
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** — Détails techniques du backend Rust.
-- **[SETUP.md](docs/SETUP.md)** — Guide détaillé pour les développeurs.
-
----
-
-## 📝 License
+## Licence
 
 MIT
 
 ---
 
-**Fait avec ❤️ en React + Rust + Tauri**
+Construit avec React, Rust, Tauri et une obsession raisonnable pour les installations propres.

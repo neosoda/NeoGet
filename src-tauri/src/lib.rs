@@ -31,6 +31,15 @@ pub fn run() {
             commands::is_admin,
             commands::search_winget,
             commands::install_software_batch,
+            commands::check_upgrades,
+            commands::upgrade_software,
+            commands::get_installed_software,
+            commands::uninstall_software,
+            commands::export_configuration,
+            commands::import_configuration,
+            commands::get_system_diagnostic,
+            commands::reset_winget_sources,
+            commands::list_winget_sources,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

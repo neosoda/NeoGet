@@ -364,21 +364,39 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
-    let lines: Vec<&str> = stdout.lines().collect();
+    let lines: Vec<&str> = clean_stdout.lines().collect();
 
-    if lines.len() < 3 {
+    if lines.len() < 2 {
         info!("Aucun resultat trouve pour '{}'", query);
         return Ok(results);
     }
 
     // Dynamic column parsing to limit parsing breakage on localized environments.
-    let header = lines[0].to_lowercase();
-    let id_idx = header.find("id").unwrap_or(30);
+    let mut header_idx = None;
+    for (idx, line) in lines.iter().enumerate().take(30) {
+        let l = line.to_lowercase();
+        if (l.contains("id") || l.contains("identifiant")) && l.contains("version") {
+            header_idx = Some(idx);
+            break;
+        }
+    }
+
+    let h_idx = match header_idx {
+        Some(idx) => idx,
+        None => {
+            info!("Entête non trouvée pour la recherche '{}'", query);
+            return Ok(results);
+        }
+    };
+
+    let header = lines[h_idx].to_lowercase();
+    let id_idx = header.find("id").or_else(|| header.find("identifiant")).unwrap_or(30);
     let version_idx = header.find("version").unwrap_or(60);
     let source_idx = header.find("source").unwrap_or(80);
 
-    for line in lines.iter().skip(2) {
+    for line in lines.iter().skip(h_idx + 2) {
         if line.trim().is_empty() || line.starts_with('-') {
             continue;
         }
@@ -534,6 +552,514 @@ pub async fn is_admin() -> Result<bool, String> {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UpgradeResult {
+    pub name: String,
+    pub id: String,
+    pub version: String,
+    pub available: String,
+    pub source: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct InstalledResult {
+    pub name: String,
+    pub id: String,
+    pub version: String,
+    pub available: String,
+    pub source: String,
+}
+
+/// Find the character position of a column header word in the WinGet header line.
+/// Uses word-boundary detection to avoid matching substrings (e.g. "id" in "disponible").
+fn find_col_pos(header: &str, candidates: &[&str]) -> Option<usize> {
+    let chars: Vec<char> = header.chars().collect();
+    let len = chars.len();
+    for candidate in candidates {
+        let candidate_chars: Vec<char> = candidate.chars().collect();
+        let cand_len = candidate_chars.len();
+        'outer: for start in 0..len.saturating_sub(cand_len - 1) {
+            // Check that this position matches the candidate
+            for (i, &c) in candidate_chars.iter().enumerate() {
+                if start + i >= len || chars[start + i] != c {
+                    continue 'outer;
+                }
+            }
+            // Check word boundaries: char before must be space/start, char after must be space/end
+            let before_ok = start == 0 || chars[start - 1] == ' ';
+            let after_pos = start + cand_len;
+            let after_ok = after_pos >= len || chars[after_pos] == ' ';
+            if before_ok && after_ok {
+                return Some(start);
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
+    info!("Recherche des mises à jour disponibles via WinGet...");
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["upgrade", "--accept-source-agreements"]);
+
+    let output = run_command_with_timeout(&mut cmd, WINGET_SEARCH_TIMEOUT, "la recherche de mises à jour").await?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
+    let mut results = Vec::new();
+    let lines: Vec<&str> = clean_stdout.lines().collect();
+    info!("[check_upgrades] {} lignes de sortie WinGet", lines.len());
+
+    if lines.len() < 2 {
+        info!("Aucune mise à jour disponible.");
+        return Ok(results);
+    }
+
+    // Find the header line dynamically: must contain "version" AND one of our ID keywords
+    let mut header_idx = None;
+    for (idx, line) in lines.iter().enumerate().take(30) {
+        let l = line.to_lowercase();
+        if l.contains("version") && (l.contains(" id ") || l.contains("identifiant") || l.starts_with("nom ") || l.starts_with("name ")) {
+            header_idx = Some(idx);
+            break;
+        }
+    }
+
+    let h_idx = match header_idx {
+        Some(idx) => idx,
+        None => {
+            info!("[check_upgrades] Entête non trouvée. Premières lignes: {:?}", &lines[..std::cmp::min(5, lines.len())]);
+            return Ok(results);
+        }
+    };
+
+    let header_lower = lines[h_idx].to_lowercase();
+    info!("[check_upgrades] Header détecté à ligne {}: '{}'", h_idx, lines[h_idx]);
+
+    // Detect column positions using word-boundary matching
+    let id_idx = find_col_pos(&header_lower, &["id", "identifiant"]).unwrap_or(40);
+    let version_idx = find_col_pos(&header_lower, &["version"]).unwrap_or(id_idx + 30);
+    let available_idx = find_col_pos(&header_lower, &["disponible", "available"]).unwrap_or(version_idx + 20);
+    let source_idx = find_col_pos(&header_lower, &["source"]).unwrap_or(available_idx + 15);
+    info!("[check_upgrades] Colonnes: name=0, id={}, version={}, available={}, source={}", id_idx, version_idx, available_idx, source_idx);
+
+    for line in lines.iter().skip(h_idx + 2) {
+        if line.trim().is_empty() || line.starts_with('-') || line.starts_with('\u{2500}') {
+            continue;
+        }
+
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
+        if len < id_idx { continue; }
+
+        let safe_slice = |start: usize, end: usize| -> String {
+            if start >= len { return String::new(); }
+            let actual_end = std::cmp::min(end, len);
+            chars[start..actual_end].iter().collect::<String>().trim().to_string()
+        };
+
+        let name = safe_slice(0, id_idx);
+        let id = safe_slice(id_idx, version_idx);
+        let version = safe_slice(version_idx, available_idx);
+        let available = safe_slice(available_idx, source_idx);
+        let source = safe_slice(source_idx, len);
+
+        if !id.trim().is_empty() && !id.contains("...") {
+            results.push(UpgradeResult { name, id, version, available, source });
+        }
+    }
+
+    info!("{} mises à jour trouvées.", results.len());
+    Ok(results)
+}
+
+#[tauri::command]
+pub async fn upgrade_software(id: String, name: String) -> Result<String, String> {
+    info!("Tentative de mise à jour de {} (ID: {})", name, id);
+
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args([
+        "upgrade",
+        "--id",
+        &id,
+        "--exact",
+        "--accept-package-agreements",
+        "--accept-source-agreements",
+        "--silent",
+        "--force",
+    ]);
+
+    let output = run_command_with_timeout(
+        &mut cmd,
+        WINGET_INSTALL_TIMEOUT,
+        &format!("la mise à jour de {}", name),
+    )
+    .await?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
+
+    if output.status.success() {
+        info!("Mise à jour réussie : {}", name);
+        return Ok(format!("{} a été mis à jour avec succès.", name));
+    }
+
+    if privilege_error_output(&normalized_output) {
+        error!("Erreur de privilèges lors de la mise à jour de {}", name);
+        return Err(format!(
+            "Erreur de privilèges : relancez NeoGet en tant qu'administrateur pour mettre à jour {}.",
+            name
+        ));
+    }
+
+    error!(
+        "Échec de la mise à jour de {} (Code: {})",
+        name,
+        output.status.code().unwrap_or(-1)
+    );
+    Err(format!(
+        "Échec de la mise à jour de {} (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+        name,
+        output.status.code().unwrap_or(-1),
+        stdout,
+        stderr
+    ))
+}
+
+#[tauri::command]
+pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
+    info!("Récupération de la liste des logiciels installés via WinGet...");
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["list", "--accept-source-agreements"]);
+
+    let output = run_command_with_timeout(&mut cmd, WINGET_SEARCH_TIMEOUT, "la récupération de la liste des logiciels").await?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
+    let mut results = Vec::new();
+    let lines: Vec<&str> = clean_stdout.lines().collect();
+    info!("[get_installed] {} lignes de sortie WinGet", lines.len());
+
+    if lines.len() < 2 {
+        return Ok(results);
+    }
+
+    // Find the header line: must contain "version" AND " id " or "identifiant"
+    let mut header_idx = None;
+    for (idx, line) in lines.iter().enumerate().take(30) {
+        let l = line.to_lowercase();
+        if l.contains("version") && (l.contains(" id ") || l.contains("identifiant") || l.starts_with("nom ") || l.starts_with("name ")) {
+            header_idx = Some(idx);
+            break;
+        }
+    }
+
+    let h_idx = match header_idx {
+        Some(idx) => idx,
+        None => {
+            info!("[get_installed] Entête non trouvée. Premières lignes: {:?}", &lines[..std::cmp::min(5, lines.len())]);
+            return Ok(results);
+        }
+    };
+
+    let header_lower = lines[h_idx].to_lowercase();
+    info!("[get_installed] Header détecté à ligne {}: '{}'", h_idx, lines[h_idx]);
+
+    // Use word-boundary column detection
+    let id_idx = find_col_pos(&header_lower, &["id", "identifiant"]).unwrap_or(40);
+    let version_idx = find_col_pos(&header_lower, &["version"]).unwrap_or(id_idx + 30);
+    let available_idx = find_col_pos(&header_lower, &["disponible", "available"]).unwrap_or(version_idx + 20);
+    let source_idx = find_col_pos(&header_lower, &["source"]).unwrap_or(available_idx + 15);
+    info!("[get_installed] Colonnes: name=0, id={}, version={}, available={}, source={}", id_idx, version_idx, available_idx, source_idx);
+
+    for line in lines.iter().skip(h_idx + 2) {
+        if line.trim().is_empty() || line.starts_with('-') || line.starts_with('\u{2500}') {
+            continue;
+        }
+
+        let chars: Vec<char> = line.chars().collect();
+        let len = chars.len();
+        if len < id_idx { continue; }
+
+        let safe_slice = |start: usize, end: usize| -> String {
+            if start >= len { return String::new(); }
+            let actual_end = std::cmp::min(end, len);
+            chars[start..actual_end].iter().collect::<String>().trim().to_string()
+        };
+
+        let name = safe_slice(0, id_idx);
+        let id = safe_slice(id_idx, version_idx);
+        let version = safe_slice(version_idx, available_idx);
+        let available = safe_slice(available_idx, source_idx);
+        let source = safe_slice(source_idx, len);
+
+        if !id.trim().is_empty() && !id.contains("...") {
+            results.push(InstalledResult { name, id, version, available, source });
+        }
+    }
+
+    info!("{} logiciels installés trouvés.", results.len());
+    Ok(results)
+}
+
+#[tauri::command]
+pub async fn uninstall_software(id: String, name: String) -> Result<String, String> {
+    info!("Tentative de désinstallation de {} (ID: {})", name, id);
+
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args([
+        "uninstall",
+        "--id",
+        &id,
+        "--exact",
+        "--accept-source-agreements",
+        "--silent",
+    ]);
+
+    let output = run_command_with_timeout(
+        &mut cmd,
+        WINGET_INSTALL_TIMEOUT,
+        &format!("la désinstallation de {}", name),
+    )
+    .await?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
+
+    if output.status.success() {
+        info!("Désinstallation réussie : {}", name);
+        return Ok(format!("{} a été désinstallé avec succès.", name));
+    }
+
+    if privilege_error_output(&normalized_output) {
+        error!("Erreur de privilèges lors de la désinstallation de {}", name);
+        return Err(format!(
+            "Erreur de privilèges : relancez NeoGet en tant qu'administrateur pour désinstaller {}.",
+            name
+        ));
+    }
+
+    error!(
+        "Échec de la désinstallation de {} (Code: {})",
+        name,
+        output.status.code().unwrap_or(-1)
+    );
+    Err(format!(
+        "Échec de la désinstallation de {} (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+        name,
+        output.status.code().unwrap_or(-1),
+        stdout,
+        stderr
+    ))
+}
+
+#[tauri::command]
+pub async fn export_configuration(items: Vec<BatchItem>) -> Result<String, String> {
+    let json_content = serde_json::to_string_pretty(&items)
+        .map_err(|e| format!("Erreur sérialisation : {}", e))?;
+
+    let escaped_json = json_content.replace("'", "''");
+
+    let script = format!(
+        r#"
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Windows.Forms
+$FileBrowser = New-Object System.Windows.Forms.SaveFileDialog
+$FileBrowser.Filter = "Configuration NeoGet (*.json)|*.json"
+$FileBrowser.Title = "Exporter votre configuration"
+$FileBrowser.FileName = "neoget-config.json"
+$Show = $FileBrowser.ShowDialog()
+if ($Show -eq "OK") {{
+    [System.IO.File]::WriteAllText($FileBrowser.FileName, '{}')
+    Write-Output "SUCCESS:$($FileBrowser.FileName)"
+}} else {{
+    Write-Output "CANCELLED"
+}}
+"#,
+        escaped_json
+    );
+
+    let mut cmd = TokioCommand::new("powershell");
+    cmd.args(["-NoProfile", "-Command", &script]);
+
+    let output = run_command_with_timeout(&mut cmd, Duration::from_secs(60), "l'export de configuration").await?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    if stdout.contains("SUCCESS:") {
+        let path = stdout.split("SUCCESS:").nth(1).unwrap_or("").trim().to_string();
+        Ok(format!("Configuration exportée avec succès dans : {}", path))
+    } else {
+        Err("Export annulé".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn import_configuration() -> Result<Vec<BatchItem>, String> {
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+Add-Type -AssemblyName System.Windows.Forms
+$FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
+$FileBrowser.Filter = "Configuration NeoGet (*.json)|*.json"
+$FileBrowser.Title = "Importer une configuration"
+$Show = $FileBrowser.ShowDialog()
+if ($Show -eq "OK") {
+    $content = [System.IO.File]::ReadAllText($FileBrowser.FileName)
+    Write-Output "SUCCESS:$content"
+} else {
+    Write-Output "CANCELLED"
+}
+"#;
+
+    let mut cmd = TokioCommand::new("powershell");
+    cmd.args(["-NoProfile", "-Command", script]);
+
+    let output = run_command_with_timeout(&mut cmd, Duration::from_secs(60), "l'import de configuration").await?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    if stdout.contains("SUCCESS:") {
+        let json_str = stdout.split("SUCCESS:").nth(1).unwrap_or("").trim();
+        let items: Vec<BatchItem> = serde_json::from_str(json_str)
+            .map_err(|e| format!("Erreur lors de la lecture du fichier JSON : {}", e))?;
+        Ok(items)
+    } else {
+        Err("Import annulé".to_string())
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SystemDiagnostic {
+    pub os_name: String,
+    pub os_version: String,
+    pub ram_total: f32,
+    pub ram_used: f32,
+    pub ram_free: f32,
+    pub disk_total: f32,
+    pub disk_used: f32,
+    pub disk_free: f32,
+    pub dev_mode: bool,
+    pub winget_version: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WinGetSource {
+    pub name: String,
+    pub argument: String,
+}
+
+#[tauri::command]
+pub async fn get_system_diagnostic() -> Result<SystemDiagnostic, String> {
+    info!("Récupération du diagnostic système via PowerShell...");
+    let script = r#"
+$OS = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+if (-not $OS) {
+    $OS = [PSCustomObject]@{ Caption = "Windows 10/11"; Version = "Unknown" }
+}
+$TotalRAM = 16.0
+$FreeRAM = 8.0
+try {
+    $TotalRAM = [Math]::Round(($OS.TotalVisibleMemorySize / 1024 / 1024), 2)
+    $FreeRAM = [Math]::Round(($OS.FreePhysicalMemory / 1024 / 1024), 2)
+} catch {}
+$UsedRAM = [Math]::Round(($TotalRAM - $FreeRAM), 2)
+
+$TotalDisk = 250.0
+$FreeDisk = 100.0
+$UsedDisk = 150.0
+try {
+    $Drive = Get-PSDrive C -ErrorAction SilentlyContinue
+    $TotalDisk = [Math]::Round(($Drive.Used + $Drive.Free) / 1GB, 2)
+    $FreeDisk = [Math]::Round($Drive.Free / 1GB, 2)
+    $UsedDisk = [Math]::Round($Drive.Used / 1GB, 2)
+} catch {}
+
+$DevMode = $false
+try {
+    $DevMode = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" -Name "AllowDevelopmentWithoutDevLicense" -ErrorAction SilentlyContinue).AllowDevelopmentWithoutDevLicense -eq 1
+} catch {}
+
+$WingetVersion = "Non installé"
+try {
+    $raw = & winget --version
+    $WingetVersion = $raw.Trim()
+} catch {}
+
+$Diagnostic = @{
+    os_name = $OS.Caption
+    os_version = $OS.Version
+    ram_total = $TotalRAM
+    ram_used = $UsedRAM
+    ram_free = $FreeRAM
+    disk_total = $TotalDisk
+    disk_used = $UsedDisk
+    disk_free = $FreeDisk
+    dev_mode = $DevMode
+    winget_version = $WingetVersion
+}
+
+Write-Output (ConvertTo-Json $Diagnostic)
+"#;
+
+    let mut cmd = TokioCommand::new("powershell");
+    cmd.args(["-NoProfile", "-Command", script]);
+
+    let output = run_command_with_timeout(&mut cmd, POWERSHELL_CHECK_TIMEOUT, "la récupération du diagnostic").await?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    let diag: SystemDiagnostic = serde_json::from_str(&stdout)
+        .map_err(|e| format!("Erreur lors de l'analyse du rapport de diagnostic : {}", e))?;
+
+    Ok(diag)
+}
+
+#[tauri::command]
+pub async fn reset_winget_sources() -> Result<String, String> {
+    info!("Réinitialisation forcée des sources WinGet...");
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["source", "reset", "--force"]);
+
+    let output = run_command_with_timeout(&mut cmd, Duration::from_secs(90), "la réinitialisation des sources").await?;
+    if output.status.success() {
+        Ok("Les sources WinGet ont été réinitialisées avec succès.".to_string())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Échec de la réinitialisation : {}", stderr))
+    }
+}
+
+#[tauri::command]
+pub async fn list_winget_sources() -> Result<Vec<WinGetSource>, String> {
+    info!("Récupération des sources WinGet...");
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["source", "list"]);
+
+    let output = run_command_with_timeout(&mut cmd, POWERSHELL_CHECK_TIMEOUT, "le listing des sources").await?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
+    let mut results = Vec::new();
+
+    let lines: Vec<&str> = clean_stdout.lines().collect();
+    if lines.len() < 3 {
+        return Ok(results);
+    }
+
+    for line in lines.iter().skip(2) {
+        if line.trim().is_empty() || line.starts_with('-') {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            results.push(WinGetSource {
+                name: parts[0].to_string(),
+                argument: parts[1..].join(" "),
+            });
+        }
+    }
+    Ok(results)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -625,5 +1151,53 @@ mod tests {
             .expect("command should complete");
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.to_lowercase().contains("ok"));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_all_winget_commands() {
+        println!("=== DIAGNOSTIC: get_installed_software ===");
+        match get_installed_software().await {
+            Ok(apps) => {
+                println!("SUCCESS: Found {} installed apps", apps.len());
+                for app in apps.iter().take(5) {
+                    println!("  - {} ({}) [{}]", app.name, app.id, app.version);
+                }
+            }
+            Err(e) => println!("ERROR in get_installed_software: {}", e),
+        }
+
+        println!("=== DIAGNOSTIC: check_upgrades ===");
+        match check_upgrades().await {
+            Ok(ups) => {
+                println!("SUCCESS: Found {} upgrades", ups.len());
+                for up in ups.iter().take(5) {
+                    println!("  - {} ({}) [{} -> {}]", up.name, up.id, up.version, up.available);
+                }
+            }
+            Err(e) => println!("ERROR in check_upgrades: {}", e),
+        }
+
+        println!("=== DIAGNOSTIC: search_winget(\"git\") ===");
+        match search_winget("git".to_string()).await {
+            Ok(res) => {
+                println!("SUCCESS: Found {} search results for 'git'", res.len());
+                for item in res.iter().take(5) {
+                    println!("  - {} ({}) [{}]", item.name, item.id, item.version);
+                }
+            }
+            Err(e) => println!("ERROR in search_winget: {}", e),
+        }
+
+        println!("=== DIAGNOSTIC: list_winget_sources ===");
+        match list_winget_sources().await {
+            Ok(srcs) => {
+                println!("SUCCESS: Found {} sources", srcs.len());
+                for src in srcs.iter() {
+                    println!("  - {}: {}", src.name, src.argument);
+                }
+            }
+            Err(e) => println!("ERROR in list_winget_sources: {}", e),
+        }
     }
 }

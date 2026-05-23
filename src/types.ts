@@ -31,3 +31,37 @@ export interface WinGetResult {
   version: string
   source: string
 }
+
+export interface UpgradeResult {
+  name: string
+  id: string
+  version: string
+  available: string
+  source: string
+}
+
+export interface InstalledResult {
+  name: string
+  id: string
+  version: string
+  available: string
+  source: string
+}
+
+export interface SystemDiagnostic {
+  os_name: string
+  os_version: string
+  ram_total: number
+  ram_used: number
+  ram_free: number
+  disk_total: number
+  disk_used: number
+  disk_free: number
+  dev_mode: boolean
+  winget_version: string
+}
+
+export interface WinGetSource {
+  name: string
+  argument: string
+}
