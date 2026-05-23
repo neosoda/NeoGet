@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { Database, Plus, Trash2, RefreshCw, Layers, Globe } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { WinGetSource, Software } from '../types'
@@ -43,7 +43,7 @@ export default function SourcesView() {
     }
   }, [])
 
-  const handleAddCustomApp = (e: React.FormEvent) => {
+  const handleAddCustomApp = (e: FormEvent) => {
     e.preventDefault()
     if (!newName || !newPackage || !newDesc) {
       showToast("Veuillez remplir tous les champs du logiciel.", "error")
@@ -60,7 +60,7 @@ export default function SourcesView() {
     const saved = localStorage.getItem('neoget-custom-software')
     let appList: any[] = []
     if (saved) {
-      try { appList = JSON.parse(saved) } catch (e) {}
+      try { appList = JSON.parse(saved) } catch {}
     }
 
     // Add category parameter or save with categorisation

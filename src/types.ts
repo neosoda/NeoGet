@@ -8,6 +8,7 @@ export interface ProgressPayload {
   total: number
   current_name: string
   message: string
+  progress_percent?: number | null
   is_finished: boolean
   error: string | null
 }

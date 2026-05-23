@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Trash2, RefreshCw, AlertTriangle, Shield, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { InstalledResult } from '../types'
 
@@ -32,7 +32,6 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
   const [uninstallingAppId, setUninstallingAppId] = useState<string | null>(null)
   const [confirmUninstallId, setConfirmUninstallId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const fetchInstalledApps = async () => {
     setLoading(true)
@@ -50,7 +49,7 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
       setInstalledApps(normalizedResults)
     } catch (e) {
       console.error(e)
-      setError("Impossible de récupérer la liste des logiciels installés.")
+      setError('Impossible de récupérer la liste des logiciels installés.')
     } finally {
       setLoading(false)
     }
@@ -70,20 +69,18 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
   }, [])
 
   const filteredApps = useMemo(() => {
-    return installedApps.filter(app => {
-      if (!app || typeof app.name !== 'string' || typeof app.id !== 'string') {
-        return false
-      }
-      return app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-             app.id.toLowerCase().includes(searchQuery.toLowerCase())
-    })
+    const query = searchQuery.toLowerCase()
+    return installedApps.filter(app =>
+      app.name.toLowerCase().includes(query) ||
+      app.id.toLowerCase().includes(query) ||
+      app.version.toLowerCase().includes(query)
+    )
   }, [installedApps, searchQuery])
 
   const handleUninstall = async (id: string, name: string) => {
     setConfirmUninstallId(null)
     setUninstallingAppId(id)
     setError(null)
-    setSuccessMessage(null)
     try {
       await onUninstall(id, name)
     } catch (e) {
@@ -94,69 +91,61 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
     }
   }
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 15 },
-    show: { opacity: 1, y: 0 },
-  }
-
   return (
-    <div className="space-y-8">
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-bold font-heading text-gray-900 dark:text-white">
-              Logiciels Installés
-            </h2>
-            {installedApps.length > 0 && (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary dark:bg-primary/20 dark:text-white border border-primary/20 font-extrabold shadow-sm">
-                {installedApps.length} applications
-              </span>
-            )}
+    <div className="space-y-5 pb-24">
+      <div className="surface-strong p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="page-title">Logiciels installés</h2>
+            <p className="page-copy mt-2">
+              Retrouvez les applications présentes sur le poste, filtrez rapidement et désinstallez sans perdre le fil.
+            </p>
           </div>
-          <p className="text-gray-650 dark:text-gray-400 mt-1.5">
-            Consultez tous les logiciels présents sur votre système et désinstallez-les proprement
-          </p>
+          <button onClick={fetchInstalledApps} disabled={loading} className="btn-secondary self-start" type="button">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Actualisation...' : 'Actualiser'}
+          </button>
         </div>
-        <button
-          onClick={fetchInstalledApps}
-          disabled={loading}
-          className="btn-primary flex items-center justify-center gap-2 self-start"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Recherche...' : 'Actualiser la liste'}
-        </button>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+            <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{installedApps.length}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">applications</p>
+          </div>
+          <div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+            <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{filteredApps.length}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">visibles</p>
+          </div>
+          <div className="rounded-lg border border-success/20 bg-success/10 p-3">
+            <p className="text-2xl font-extrabold text-emerald-700 dark:text-success">Local</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-700/80 dark:text-success/80">inventaire</p>
+          </div>
+        </div>
       </div>
 
-      {/* Messages */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-500/30 text-red-600 dark:text-red-400 flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
-          <p className="text-sm font-medium">{error}</p>
+        <div className="rounded-lg border border-error/25 bg-error/10 p-4 text-error">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-bold">{error}</p>
+          </div>
         </div>
       )}
 
-      {successMessage && (
-        <div className="p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-500/30 text-green-600 dark:text-green-400 flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-          <p className="text-sm font-medium">{successMessage}</p>
+      <div className="surface-soft p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Filtrer par nom, version ou package ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="input-field pl-10"
+            disabled={loading}
+          />
         </div>
-      )}
-
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Rechercher parmi les applications installées (ex: chrome, visual studio)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="input-field pl-12"
-          disabled={loading}
-        />
       </div>
 
-      {/* Main Content */}
       <AnimatePresence mode="wait">
         {loading ? (
           <motion.div
@@ -164,113 +153,100 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center py-20 text-center space-y-4"
+            className="surface-soft flex min-h-[360px] flex-col items-center justify-center p-8 text-center"
           >
-            <div className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
-            <p className="text-gray-600 dark:text-gray-400 font-medium animate-pulse">
-              Chargement de la liste des logiciels installés...
-            </p>
+            <div className="h-14 w-14 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+            <h3 className="mt-5 font-heading text-lg font-extrabold text-slate-950 dark:text-white">Inventaire en cours</h3>
+            <p className="mt-1 text-sm font-medium text-slate-500">Lecture des applications installées localement.</p>
           </motion.div>
         ) : filteredApps.length > 0 ? (
-          <div
-            key="installed-grid"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          <motion.div
+            key="installed-list"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="surface-strong overflow-hidden"
           >
-            {filteredApps.map((app, idx) => {
-              const isUninstalling = uninstallingAppId === app.id
-              const isConfirming = confirmUninstallId === app.id
+            <div className="grid grid-cols-[minmax(0,1fr)_140px_130px_180px] gap-4 border-b border-slate-200/70 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 max-lg:hidden">
+              <span>Application</span>
+              <span>Version</span>
+              <span>Source</span>
+              <span className="text-right">Gestion</span>
+            </div>
+            <div className="divide-y divide-slate-200/70 dark:divide-white/10">
+              {filteredApps.map((app, idx) => {
+                const isUninstalling = uninstallingAppId === app.id
+                const isConfirming = confirmUninstallId === app.id
 
-              return (
-                <motion.div key={`${app.id}-${idx}`} variants={itemVariants}>
-                  <div className={`group card h-full flex flex-col hover:shadow-xl transition-all duration-300 ${isConfirming ? 'border-amber-500 ring-1 ring-amber-500/20 bg-amber-500/5' : ''} ${isUninstalling ? 'opacity-70 pointer-events-none' : ''}`}>
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
-                          {app.name}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-mono font-medium">
-                            v{app.version}
-                          </span>
-                          {app.source && (
-                            <span className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-                              <Shield className="w-3 h-3 text-success/70" />
-                              {app.source}
-                            </span>
-                          )}
-                        </div>
+                return (
+                  <div key={`${app.id}-${idx}`} className={`grid gap-4 px-4 py-4 transition lg:grid-cols-[minmax(0,1fr)_140px_130px_180px] lg:items-center ${isUninstalling ? 'opacity-60' : ''}`}>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 shrink-0 text-success" />
+                        <h3 className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{app.name}</h3>
                       </div>
+                      <p className="mt-1 truncate font-mono text-xs font-semibold text-slate-500">{app.id}</p>
                     </div>
+                    <span className="w-fit rounded-md bg-slate-100 px-2 py-1 font-mono text-xs font-bold text-slate-500 dark:bg-white/[0.055]">
+                      v{app.version}
+                    </span>
+                    <span className="text-xs font-bold text-slate-500">{app.source || 'Local'}</span>
 
-                    <div className="mb-6 pb-6 border-t border-gray-200 dark:border-gray-700 pt-4 flex-1">
-                      <code className="text-xs font-mono text-gray-500 dark:text-gray-500 break-all block">
-                        {app.id}
-                      </code>
-                    </div>
-
-                    <AnimatePresence mode="wait">
-                      {isConfirming ? (
-                        <motion.div
-                          key="confirm-uninstall"
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          className="flex gap-2 w-full"
+                    {isConfirming ? (
+                      <div className="flex gap-2 lg:justify-end">
+                        <button
+                          onClick={() => handleUninstall(app.id, app.name)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-error px-3 py-2 text-xs font-bold text-white"
+                          type="button"
                         >
-                          <button
-                            onClick={() => handleUninstall(app.id, app.name)}
-                            className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors"
-                          >
-                            Confirmer
-                          </button>
-                          <button
-                            onClick={() => setConfirmUninstallId(null)}
-                            className="flex-1 py-2 rounded-xl bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white text-xs font-bold transition-colors"
-                          >
-                            Annuler
-                          </button>
-                        </motion.div>
-                      ) : (
-                        <motion.button
-                          key="uninstall-btn"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setConfirmUninstallId(app.id)}
-                          disabled={isUninstalling}
-                          className="w-full py-2.5 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-50 hover:text-white flex items-center justify-center gap-2 font-bold text-sm transition-all disabled:opacity-50"
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Confirmer
+                        </button>
+                        <button
+                          onClick={() => setConfirmUninstallId(null)}
+                          className="btn-secondary px-3 py-2 text-xs"
+                          type="button"
                         >
+                          <X className="h-3.5 w-3.5" />
+                          Annuler
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmUninstallId(app.id)}
+                        disabled={isUninstalling}
+                        className="justify-self-start rounded-lg border border-error/25 px-3 py-2 text-xs font-bold text-error transition hover:bg-error hover:text-white disabled:pointer-events-none disabled:opacity-50 lg:justify-self-end"
+                        type="button"
+                      >
+                        <span className="inline-flex items-center gap-1.5">
                           {isUninstalling ? (
-                            <>
-                              <div className="animate-spin w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full" />
-                              Désinstallation...
-                            </>
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                           ) : (
-                            <>
-                              <Trash2 className="w-4 h-4" />
-                              Désinstaller
-                            </>
+                            <Trash2 className="h-3.5 w-3.5" />
                           )}
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
+                          {isUninstalling ? 'Désinstallation...' : 'Désinstaller'}
+                        </span>
+                      </button>
+                    )}
                   </div>
-                </motion.div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </motion.div>
         ) : (
           <motion.div
             key="installed-empty"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center py-20 text-center space-y-4"
+            className="surface-soft flex min-h-[320px] flex-col items-center justify-center p-8 text-center"
           >
-            <p className="text-gray-500 dark:text-gray-400">
-              {searchQuery ? 'Aucun logiciel ne correspond à votre recherche.' : 'Aucun logiciel trouvé sur votre système.'}
+            <Search className="h-8 w-8 text-slate-400" />
+            <h3 className="mt-4 font-heading text-lg font-extrabold text-slate-950 dark:text-white">
+              {searchQuery ? 'Aucun résultat' : 'Aucun logiciel détecté'}
+            </h3>
+            <p className="mt-1 max-w-md text-sm leading-6 text-slate-500">
+              {searchQuery ? 'Modifiez le filtre pour retrouver une application.' : 'L’inventaire local ne contient pas encore de résultats affichables.'}
             </p>
           </motion.div>
         )}

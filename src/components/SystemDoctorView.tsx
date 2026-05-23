@@ -1,261 +1,248 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, Shield, HardDrive, Cpu, RefreshCw, Wrench, CheckCircle } from 'lucide-react'
+import { Activity, CheckCircle2, Cpu, HardDrive, RefreshCw, Shield, Wrench } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { SystemDiagnostic } from '../types'
 import { showToast } from './ToastContainer'
+
+function MetricRing({
+  label,
+  value,
+  detail,
+  percent,
+  tone
+}: {
+  label: string
+  value: string
+  detail: string
+  percent: number
+  tone: 'primary' | 'accent'
+}) {
+  const colorClass = tone === 'primary' ? 'text-primary' : 'text-accent'
+
+  return (
+    <div className="surface-strong p-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">{label}</h3>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{detail}</p>
+        </div>
+        <span className={`rounded-md border px-2 py-1 text-xs font-black ${
+          tone === 'primary' ? 'border-primary/20 bg-primary/10 text-primary' : 'border-accent/20 bg-accent/10 text-accent'
+        }`}>
+          {percent}% utilisé
+        </span>
+      </div>
+      <div className="mt-6 flex items-center justify-center">
+        <div className="relative flex h-36 w-36 items-center justify-center">
+          <svg className="h-full w-full -rotate-90">
+            <circle cx="72" cy="72" r="58" className="text-slate-200 dark:text-white/10" strokeWidth="10" stroke="currentColor" fill="transparent" />
+            <motion.circle
+              cx="72"
+              cy="72"
+              r="58"
+              className={colorClass}
+              strokeWidth="10"
+              strokeDasharray={364}
+              initial={{ strokeDashoffset: 364 }}
+              animate={{ strokeDashoffset: 364 - (364 * percent) / 100 }}
+              transition={{ duration: 0.9 }}
+              strokeLinecap="round"
+              stroke="currentColor"
+              fill="transparent"
+            />
+          </svg>
+          <div className="absolute text-center">
+            <span className="text-3xl font-extrabold text-slate-950 dark:text-white">{value}</span>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Go libres</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function SystemDoctorView() {
   const [diag, setDiag] = useState<SystemDiagnostic | null>(null)
   const [loading, setLoading] = useState(false)
   const [fixing, setFixing] = useState(false)
 
-  const runDiagnostic = async () => {
+  const runDiagnostic = useCallback(async () => {
     setLoading(true)
     try {
       const result = await invoke<SystemDiagnostic>('get_system_diagnostic')
       setDiag(result)
-      showToast("Diagnostic système complété !", "success")
+      showToast('Diagnostic système complété.', 'success')
     } catch (e) {
       console.error(e)
-      showToast(`Échec du diagnostic : ${e}`, "error")
+      showToast(`Échec du diagnostic : ${e}`, 'error')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleFixWinGet = async () => {
+  const handleFixWinGet = useCallback(async () => {
     setFixing(true)
     try {
       const msg = await invoke<string>('reset_winget_sources')
-      showToast(msg, "success")
+      showToast(msg, 'success')
       await runDiagnostic()
     } catch (e) {
       console.error(e)
-      showToast(`Échec de la réparation : ${e}`, "error")
+      showToast(`Échec de la réparation : ${e}`, 'error')
     } finally {
       setFixing(false)
     }
-  }
+  }, [runDiagnostic])
 
   useEffect(() => {
     runDiagnostic()
-  }, [])
+  }, [runDiagnostic])
+
+  useEffect(() => {
+    window.addEventListener('trigger-winget-fix', handleFixWinGet)
+    return () => window.removeEventListener('trigger-winget-fix', handleFixWinGet)
+  }, [handleFixWinGet])
+
+  const metrics = useMemo(() => {
+    if (!diag) return { ramPercent: 0, diskPercent: 0 }
+    return {
+      ramPercent: diag.ram_total > 0 ? Math.round((diag.ram_used / diag.ram_total) * 100) : 0,
+      diskPercent: diag.disk_total > 0 ? Math.round((diag.disk_used / diag.disk_total) * 100) : 0
+    }
+  }, [diag])
 
   if (!diag && loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
-        <div className="w-16 h-16 rounded-full border-4 border-accent/30 border-t-accent animate-spin" />
-        <p className="text-gray-600 dark:text-gray-400 font-semibold animate-pulse">
-          Consultation des capteurs matériels et des statuts logiciels...
-        </p>
+      <div className="surface-soft flex min-h-[420px] flex-col items-center justify-center p-8 text-center">
+        <div className="h-14 w-14 rounded-full border-4 border-accent/20 border-t-accent animate-spin" />
+        <h3 className="mt-5 font-heading text-lg font-extrabold text-slate-950 dark:text-white">Diagnostic en cours</h3>
+        <p className="mt-1 text-sm font-medium text-slate-500">Lecture des ressources et de l’état WinGet.</p>
       </div>
     )
   }
 
   if (!diag) return null
 
-  // Calculate percentages
-  const ramPercent = diag.ram_total > 0 ? Math.round((diag.ram_used / diag.ram_total) * 100) : 0
-  const diskPercent = diag.disk_total > 0 ? Math.round((diag.disk_used / diag.disk_total) * 100) : 0
-
   return (
-    <div className="space-y-8">
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold font-heading text-gray-900 dark:text-white mb-2">
-            System Doctor
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Analysez l'intégrité de vos ressources système et réparez le moteur de paquets Microsoft WinGet
-          </p>
+    <div className="space-y-5 pb-24">
+      <div className="surface-strong p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="page-title">System Doctor</h2>
+            <p className="page-copy mt-2">
+              Une vue claire de l’état machine, des ressources critiques et du moteur de paquets WinGet.
+            </p>
+          </div>
+          <button onClick={runDiagnostic} disabled={loading} className="btn-secondary self-start" type="button">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Consultation...' : 'Actualiser'}
+          </button>
         </div>
-        <button
-          onClick={runDiagnostic}
-          disabled={loading}
-          className="btn-primary flex items-center justify-center gap-2 self-start"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Consultation...' : 'Actualiser le diagnostic'}
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Diagnostics Material */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Disk Health Jauge */}
-            <div className="card flex flex-col p-6 hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <HardDrive className="w-5 h-5 text-primary" />
-                  <h3 className="font-bold text-gray-900 dark:text-white">Disque Local (C:)</h3>
-                </div>
-                <span className="text-sm font-semibold text-primary">{diskPercent}% utilisé</span>
-              </div>
-              <div className="flex items-center justify-center py-6">
-                <div className="relative w-36 h-36 flex items-center justify-center">
-                  {/* SVG circular progress */}
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="72"
-                      cy="72"
-                      r="60"
-                      className="text-gray-200 dark:text-gray-700"
-                      strokeWidth="10"
-                      stroke="currentColor"
-                      fill="transparent"
-                    />
-                    <motion.circle
-                      cx="72"
-                      cy="72"
-                      r="60"
-                      className="text-primary"
-                      strokeWidth="10"
-                      strokeDasharray={377}
-                      initial={{ strokeDashoffset: 377 }}
-                      animate={{ strokeDashoffset: 377 - (377 * diskPercent) / 100 }}
-                      transition={{ duration: 1 }}
-                      strokeLinecap="round"
-                      stroke="currentColor"
-                      fill="transparent"
-                    />
-                  </svg>
-                  <div className="absolute text-center">
-                    <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{diag.disk_free}</span>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mt-0.5">Go Libres</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-between text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700/50 pt-4">
-                <span>Total : {diag.disk_total} Go</span>
-                <span>Utilisé : {diag.disk_used} Go</span>
-              </div>
-            </div>
-
-            {/* Memory Health Jauge */}
-            <div className="card flex flex-col p-6 hover:shadow-xl transition-all duration-300">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <Cpu className="w-5 h-5 text-accent" />
-                  <h3 className="font-bold text-gray-900 dark:text-white">Mémoire RAM</h3>
-                </div>
-                <span className="text-sm font-semibold text-accent">{ramPercent}% utilisé</span>
-              </div>
-              <div className="flex items-center justify-center py-6">
-                <div className="relative w-36 h-36 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90">
-                    <circle
-                      cx="72"
-                      cy="72"
-                      r="60"
-                      className="text-gray-200 dark:text-gray-700"
-                      strokeWidth="10"
-                      stroke="currentColor"
-                      fill="transparent"
-                    />
-                    <motion.circle
-                      cx="72"
-                      cy="72"
-                      r="60"
-                      className="text-accent"
-                      strokeWidth="10"
-                      strokeDasharray={377}
-                      initial={{ strokeDashoffset: 377 }}
-                      animate={{ strokeDashoffset: 377 - (377 * ramPercent) / 100 }}
-                      transition={{ duration: 1 }}
-                      strokeLinecap="round"
-                      stroke="currentColor"
-                      fill="transparent"
-                    />
-                  </svg>
-                  <div className="absolute text-center">
-                    <span className="text-3xl font-extrabold text-gray-900 dark:text-white">{diag.ram_free}</span>
-                    <p className="text-[10px] uppercase font-bold text-gray-400 mt-0.5">Go Libres</p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex justify-between text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700/50 pt-4">
-                <span>Total : {diag.ram_total} Go</span>
-                <span>Utilisé : {diag.ram_used} Go</span>
-              </div>
-            </div>
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <MetricRing
+              label="Disque local"
+              value={String(diag.disk_free)}
+              detail={`${diag.disk_used} Go utilisés sur ${diag.disk_total} Go`}
+              percent={metrics.diskPercent}
+              tone="primary"
+            />
+            <MetricRing
+              label="Mémoire RAM"
+              value={String(diag.ram_free)}
+              detail={`${diag.ram_used} Go utilisés sur ${diag.ram_total} Go`}
+              percent={metrics.ramPercent}
+              tone="accent"
+            />
           </div>
 
-          {/* OS Details Information card */}
-          <div className="card p-6">
-            <div className="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-gray-700 pb-4">
-              <Activity className="w-5 h-5 text-success" />
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white">Spécifications OS</h3>
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-success/20 bg-success/10 text-success">
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Spécifications OS</h3>
+                <p className="text-sm font-medium text-slate-500">Informations utiles pour diagnostiquer une installation.</p>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8 text-sm">
-              <div className="flex justify-between border-b border-gray-150 dark:border-gray-700 pb-2">
-                <span className="text-gray-500">Nom du Système</span>
-                <span className="font-semibold text-gray-900 dark:text-white">{diag.os_name}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-150 dark:border-gray-700 pb-2">
-                <span className="text-gray-500">Version du Noyau</span>
-                <span className="font-mono text-gray-900 dark:text-white">{diag.os_version}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-150 dark:border-gray-700 pb-2">
-                <span className="text-gray-500">Moteur WinGet</span>
-                <span className="font-semibold text-primary">v{diag.winget_version}</span>
-              </div>
-              <div className="flex justify-between border-b border-gray-150 dark:border-gray-700 pb-2">
-                <span className="text-gray-500">Mode Développeur</span>
-                <span className={`font-semibold flex items-center gap-1 ${diag.dev_mode ? 'text-success' : 'text-amber-500'}`}>
-                  {diag.dev_mode ? 'Activé' : 'Désactivé'}
-                </span>
-              </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {[
+                ['Nom du système', diag.os_name],
+                ['Version du noyau', diag.os_version],
+                ['Moteur WinGet', `v${diag.winget_version}`],
+                ['Mode développeur', diag.dev_mode ? 'Activé' : 'Désactivé']
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+                  <p className="mt-1 break-words text-sm font-extrabold text-slate-950 dark:text-white">{value}</p>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Right Column: WinGet Source Reset / Doctor Fix panel */}
-        <div className="space-y-6">
-          <div className="card p-6 border-accent/20 bg-gradient-to-b from-transparent to-accent/5">
-            <div className="flex items-center gap-3 mb-4">
-              <Shield className="w-6 h-6 text-accent" />
-              <h3 className="font-bold text-xl text-gray-900 dark:text-white">Doctor WinGet</h3>
+        <aside className="space-y-5">
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-accent/20 bg-accent/10 text-accent">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Doctor WinGet</h3>
+                <p className="text-sm font-medium text-slate-500">Réparer les sources locales.</p>
+              </div>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
-              Si des paquets refusent de s'installer, ou que la recherche globale ne remonte aucun résultat, les bases de données locales de WinGet sont peut-être corrompues.
+
+            <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-400">
+              Si la recherche ne retourne plus rien ou qu’un paquet refuse de s’installer, NeoGet peut réinitialiser les index WinGet puis relancer un diagnostic.
             </p>
-            <div className="bg-white dark:bg-gray-900/60 border border-gray-200 dark:border-gray-800 p-4 rounded-xl text-xs space-y-2 mb-6">
-              <div className="flex gap-2">
-                <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
-                <span className="text-gray-700 dark:text-gray-300">Vérifie l'intégrité des référentiels officiels.</span>
-              </div>
-              <div className="flex gap-2">
-                <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
-                <span className="text-gray-700 dark:text-gray-300">Force la mise à jour des index de recherche.</span>
-              </div>
-              <div className="flex gap-2">
-                <CheckCircle className="w-4 h-4 text-success flex-shrink-0" />
-                <span className="text-gray-700 dark:text-gray-300">Résout les conflits de clés de signature locales.</span>
-              </div>
+
+            <div className="mt-4 space-y-2">
+              {[
+                'Vérifie les référentiels officiels',
+                'Force la mise à jour des index',
+                'Résout les conflits de signatures'
+              ].map(item => (
+                <div key={item} className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 text-sm font-semibold text-slate-700 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+                  {item}
+                </div>
+              ))}
             </div>
 
-            <button
-              onClick={handleFixWinGet}
-              disabled={fixing}
-              className="w-full btn-accent py-3.5 rounded-xl flex items-center justify-center gap-2 font-bold text-sm"
-            >
+            <button onClick={handleFixWinGet} disabled={fixing} className="btn-accent mt-5 w-full py-3" type="button">
               {fixing ? (
-                <>
-                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                  Réparation en cours...
-                </>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
               ) : (
-                <>
-                  <Wrench className="w-4 h-4" />
-                  Réparer WinGet (Doctor Fix)
-                </>
+                <Wrench className="h-4 w-4" />
               )}
+              {fixing ? 'Réparation...' : 'Réparer WinGet'}
             </button>
           </div>
-        </div>
+
+          <div className="surface-soft p-4">
+            <div className="flex items-center gap-3">
+              <Cpu className="h-5 w-5 text-accent" />
+              <div>
+                <p className="text-sm font-extrabold text-slate-950 dark:text-white">Capteurs synchronisés</p>
+                <p className="text-xs font-medium text-slate-500">RAM et stockage suivis localement.</p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <HardDrive className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm font-extrabold text-slate-950 dark:text-white">Poste prêt</p>
+                <p className="text-xs font-medium text-slate-500">Diagnostic compatible avec les actions rapides.</p>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   )

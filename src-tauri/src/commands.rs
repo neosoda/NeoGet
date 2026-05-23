@@ -1,11 +1,15 @@
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::{
-    process::Output,
-    sync::atomic::{AtomicBool, Ordering},
+    process::{Output, Stdio},
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Arc,
+    },
     time::Duration,
 };
 use tauri::{AppHandle, Emitter};
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command as TokioCommand;
 
 // Windows flag to avoid opening a visible console for child processes.
@@ -73,8 +77,24 @@ pub struct ProgressPayload {
     pub total: usize,
     pub current_name: String,
     pub message: String,
+    pub progress_percent: Option<f32>,
     pub is_finished: bool,
     pub error: Option<String>,
+}
+
+#[derive(Clone)]
+struct ProgressContext {
+    app: AppHandle,
+    total: usize,
+    current_index: usize,
+    current_name: String,
+    action_label: String,
+}
+
+#[derive(Clone)]
+struct ProgressRuntime {
+    ctx: ProgressContext,
+    item_percent_tenths: Arc<AtomicU32>,
 }
 
 fn normalize_for_match(input: &str) -> String {
@@ -149,8 +169,309 @@ fn build_batch_final_payload(
         total,
         current_name,
         message,
+        progress_percent: Some(100.0),
         is_finished: true,
         error,
+    }
+}
+
+fn parse_last_number(input: &str) -> Option<f32> {
+    let mut last = None;
+    let mut token = String::new();
+
+    for c in input.chars() {
+        if c.is_ascii_digit() || c == '.' || c == ',' {
+            token.push(if c == ',' { '.' } else { c });
+        } else if !token.is_empty() {
+            if let Ok(value) = token.parse::<f32>() {
+                last = Some(value);
+            }
+            token.clear();
+        }
+    }
+
+    if !token.is_empty() {
+        if let Ok(value) = token.parse::<f32>() {
+            last = Some(value);
+        }
+    }
+
+    last
+}
+
+fn parse_first_number(input: &str) -> Option<f32> {
+    let mut token = String::new();
+
+    for c in input.chars() {
+        if c.is_ascii_digit() || c == '.' || c == ',' {
+            token.push(if c == ',' { '.' } else { c });
+        } else if !token.is_empty() {
+            break;
+        }
+    }
+
+    if token.is_empty() {
+        return None;
+    }
+
+    token.parse::<f32>().ok()
+}
+
+fn extract_explicit_percent(input: &str) -> Option<f32> {
+    let percent_pos = input.rfind('%')?;
+    let before_percent = &input[..percent_pos];
+    let mut digits = String::new();
+
+    for c in before_percent.chars().rev() {
+        if c.is_ascii_digit() || c == '.' || c == ',' {
+            digits.push(if c == ',' { '.' } else { c });
+        } else if !digits.is_empty() {
+            break;
+        }
+    }
+
+    if digits.is_empty() {
+        return None;
+    }
+
+    let value = digits
+        .chars()
+        .rev()
+        .collect::<String>()
+        .parse::<f32>()
+        .ok()?;
+    Some(value.clamp(0.0, 100.0))
+}
+
+fn extract_ratio_percent(input: &str) -> Option<f32> {
+    for (slash_idx, _) in input.match_indices('/') {
+        if let (Some(current), Some(total)) = (
+            parse_last_number(&input[..slash_idx]),
+            parse_first_number(&input[slash_idx + 1..]),
+        ) {
+            if total > 0.0 && current >= 0.0 && current <= total * 1.2 {
+                return Some(((current / total) * 100.0).clamp(0.0, 100.0));
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_percent(input: &str) -> Option<f32> {
+    extract_explicit_percent(input).or_else(|| extract_ratio_percent(input))
+}
+
+fn emit_progress(ctx: &ProgressContext, item_percent: f32, message: String, error: Option<String>) {
+    let total = ctx.total.max(1);
+    let completed_before = ctx.current_index.saturating_sub(1) as f32;
+    let overall_percent =
+        ((completed_before + item_percent.clamp(0.0, 100.0) / 100.0) / total as f32) * 100.0;
+
+    let payload = ProgressPayload {
+        current_index: ctx.current_index,
+        total: ctx.total,
+        current_name: ctx.current_name.clone(),
+        message,
+        progress_percent: Some(overall_percent.clamp(0.0, 100.0)),
+        is_finished: false,
+        error,
+    };
+
+    let _ = ctx.app.emit("installation-progress", &payload);
+}
+
+fn publish_progress(
+    runtime: &ProgressRuntime,
+    item_percent: f32,
+    message: String,
+    error: Option<String>,
+) {
+    let bounded = item_percent.clamp(0.0, 100.0);
+    let next = (bounded * 10.0).round() as u32;
+    let mut current = runtime.item_percent_tenths.load(Ordering::Relaxed);
+
+    loop {
+        if next <= current || (current > 0 && next < 1000 && next.saturating_sub(current) < 5) {
+            return;
+        }
+
+        match runtime.item_percent_tenths.compare_exchange_weak(
+            current,
+            next,
+            Ordering::AcqRel,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => {
+                emit_progress(&runtime.ctx, next as f32 / 10.0, message, error);
+                return;
+            }
+            Err(actual) => current = actual,
+        }
+    }
+}
+
+fn start_estimated_progress(runtime: ProgressRuntime) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        publish_progress(
+            &runtime,
+            1.0,
+            format!(
+                "{} de {} en cours...",
+                runtime.ctx.action_label, runtime.ctx.current_name
+            ),
+            None,
+        );
+
+        let mut elapsed_ms = 0u64;
+        loop {
+            tokio::time::sleep(Duration::from_millis(850)).await;
+            elapsed_ms += 850;
+
+            let elapsed = elapsed_ms as f32 / 1000.0;
+            let estimated = if elapsed < 18.0 {
+                2.0 + elapsed * 2.6
+            } else if elapsed < 90.0 {
+                48.0 + (elapsed - 18.0) * 0.48
+            } else {
+                82.0 + ((elapsed - 90.0) * 0.04).min(10.0)
+            };
+
+            publish_progress(
+                &runtime,
+                estimated.min(92.0),
+                format!(
+                    "{} de {} en cours...",
+                    runtime.ctx.action_label, runtime.ctx.current_name
+                ),
+                None,
+            );
+        }
+    })
+}
+
+async fn read_stream_with_progress<R>(
+    mut reader: R,
+    progress: Option<ProgressRuntime>,
+) -> Result<Vec<u8>, std::io::Error>
+where
+    R: AsyncRead + Unpin,
+{
+    let mut collected = Vec::new();
+    let mut buffer = [0u8; 1024];
+
+    loop {
+        let read = reader.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+
+        collected.extend_from_slice(&buffer[..read]);
+
+        if let Some(ctx) = &progress {
+            let chunk = decode_command_output(&buffer[..read]);
+            if let Some(percent) = extract_percent(&chunk) {
+                publish_progress(
+                    ctx,
+                    percent,
+                    format!(
+                        "{} de {} : {}%",
+                        ctx.ctx.action_label,
+                        ctx.ctx.current_name,
+                        percent.round() as u32
+                    ),
+                    None,
+                );
+            }
+        }
+    }
+
+    Ok(collected)
+}
+
+async fn run_command_streaming_with_timeout(
+    cmd: &mut TokioCommand,
+    timeout: Duration,
+    operation: &str,
+    progress: Option<ProgressContext>,
+) -> Result<Output, String> {
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    cmd.kill_on_drop(true);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|e| {
+        error!("Erreur systeme pendant {}: {}", operation, e);
+        format!("Erreur systeme pendant {}: {}", operation, e)
+    })?;
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let progress_runtime = progress.map(|ctx| ProgressRuntime {
+        ctx,
+        item_percent_tenths: Arc::new(AtomicU32::new(0)),
+    });
+    let heartbeat_task = progress_runtime.clone().map(start_estimated_progress);
+    let stdout_progress = progress_runtime.clone();
+    let stderr_progress = progress_runtime.clone();
+
+    let task = async move {
+        let stdout_task = stdout.map(|stream| {
+            tokio::spawn(async move { read_stream_with_progress(stream, stdout_progress).await })
+        });
+        let stderr_task = stderr.map(|stream| {
+            tokio::spawn(async move { read_stream_with_progress(stream, stderr_progress).await })
+        });
+
+        let status = child.wait().await.map_err(|e| {
+            error!("Erreur systeme pendant {}: {}", operation, e);
+            format!("Erreur systeme pendant {}: {}", operation, e)
+        })?;
+
+        let stdout = match stdout_task {
+            Some(task) => task
+                .await
+                .map_err(|e| format!("Erreur lecture stdout pendant {}: {}", operation, e))?
+                .map_err(|e| format!("Erreur lecture stdout pendant {}: {}", operation, e))?,
+            None => Vec::new(),
+        };
+
+        let stderr = match stderr_task {
+            Some(task) => task
+                .await
+                .map_err(|e| format!("Erreur lecture stderr pendant {}: {}", operation, e))?
+                .map_err(|e| format!("Erreur lecture stderr pendant {}: {}", operation, e))?,
+            None => Vec::new(),
+        };
+
+        Ok(Output {
+            status,
+            stdout,
+            stderr,
+        })
+    };
+
+    let result = tokio::time::timeout(timeout, task).await;
+    if let Some(task) = heartbeat_task {
+        task.abort();
+    }
+
+    match result {
+        Ok(result) => result,
+        Err(_) => {
+            error!(
+                "Timeout de {} secondes atteint pendant {}",
+                timeout.as_secs(),
+                operation
+            );
+            Err(format!(
+                "Timeout de {} secondes atteint pendant {}.",
+                timeout.as_secs(),
+                operation
+            ))
+        }
     }
 }
 
@@ -185,7 +506,35 @@ async fn run_command_with_timeout(
     }
 }
 
-async fn run_winget_install(id: &str, name: &str) -> Result<String, String> {
+fn decode_command_output(bytes: &[u8]) -> String {
+    String::from_utf8_lossy(bytes)
+        .trim_start_matches('\u{feff}')
+        .to_string()
+}
+
+fn powershell_command(script: &str) -> TokioCommand {
+    let mut cmd = TokioCommand::new("powershell");
+    let utf8_script = format!(
+        "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); \
+         $OutputEncoding = [Console]::OutputEncoding; {}",
+        script
+    );
+
+    cmd.args([
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        &utf8_script,
+    ]);
+    cmd
+}
+
+async fn run_winget_install(
+    id: &str,
+    name: &str,
+    progress: Option<ProgressContext>,
+) -> Result<String, String> {
     info!("Tentative d'installation de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
@@ -200,15 +549,16 @@ async fn run_winget_install(id: &str, name: &str) -> Result<String, String> {
         "--force",
     ]);
 
-    let output = run_command_with_timeout(
+    let output = run_command_streaming_with_timeout(
         &mut cmd,
         WINGET_INSTALL_TIMEOUT,
         &format!("l'installation de {}", name),
+        progress,
     )
     .await?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = decode_command_output(&output.stdout);
+    let stderr = decode_command_output(&output.stderr);
     let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
 
     if output.status.success() {
@@ -249,14 +599,42 @@ pub async fn get_software_list() -> Result<Vec<Software>, String> {
 }
 
 #[tauri::command]
-pub async fn install_software(id: String, name: String) -> Result<String, String> {
+pub async fn install_software(app: AppHandle, id: String, name: String) -> Result<String, String> {
     let _guard = InstallingGuard::acquire()?;
-    run_winget_install(&id, &name).await
+    run_winget_install(
+        &id,
+        &name,
+        Some(ProgressContext {
+            app,
+            total: 1,
+            current_index: 1,
+            current_name: name.clone(),
+            action_label: "Installation".to_string(),
+        }),
+    )
+    .await
 }
 
 // Internal install function reused by the batch pipeline.
-async fn install_software_internal(id: &str, name: &str) -> Result<String, String> {
-    run_winget_install(id, name).await
+async fn install_software_internal(
+    app: AppHandle,
+    id: &str,
+    name: &str,
+    total: usize,
+    current_index: usize,
+) -> Result<String, String> {
+    run_winget_install(
+        id,
+        name,
+        Some(ProgressContext {
+            app,
+            total,
+            current_index,
+            current_name: name.to_string(),
+            action_label: "Installation".to_string(),
+        }),
+    )
+    .await
 }
 
 #[tauri::command]
@@ -299,16 +677,31 @@ pub async fn install_software_batch(
                     "Installation de {} ({}/{})",
                     item.name, current_index, total
                 ),
+                progress_percent: Some((index as f32 / total.max(1) as f32) * 100.0),
                 is_finished: false,
                 error: None,
             };
 
             let _ = app.emit("installation-progress", &payload);
 
-            match install_software_internal(&item.id, &item.name).await {
+            match install_software_internal(app.clone(), &item.id, &item.name, total, current_index)
+                .await
+            {
                 Ok(_) => {
                     success_count += 1;
                     info!("Succes batch pour {}", item.name);
+                    emit_progress(
+                        &ProgressContext {
+                            app: app.clone(),
+                            total,
+                            current_index,
+                            current_name: item.name.clone(),
+                            action_label: "Installation".to_string(),
+                        },
+                        100.0,
+                        format!("{} installe ({}/{})", item.name, current_index, total),
+                        None,
+                    );
                     tokio::time::sleep(Duration::from_millis(500)).await;
                 }
                 Err(e) => {
@@ -320,6 +713,9 @@ pub async fn install_software_batch(
                         total,
                         current_name: item.name.clone(),
                         message: format!("Erreur lors de l'installation de {}", item.name),
+                        progress_percent: Some(
+                            (current_index as f32 / total.max(1) as f32) * 100.0,
+                        ),
                         is_finished: false,
                         error: Some(e),
                     };
@@ -358,12 +754,12 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
         run_command_with_timeout(&mut cmd, WINGET_SEARCH_TIMEOUT, "la recherche WinGet").await?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = decode_command_output(&output.stderr);
         error!("La recherche WinGet a echoue : {}", stderr.trim());
         return Err(format!("La recherche WinGet a echoue : {}", stderr.trim()));
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = decode_command_output(&output.stdout);
     let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
     let lines: Vec<&str> = clean_stdout.lines().collect();
@@ -392,7 +788,10 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     };
 
     let header = lines[h_idx].to_lowercase();
-    let id_idx = header.find("id").or_else(|| header.find("identifiant")).unwrap_or(30);
+    let id_idx = header
+        .find("id")
+        .or_else(|| header.find("identifiant"))
+        .unwrap_or(30);
     let version_idx = header.find("version").unwrap_or(60);
     let source_idx = header.find("source").unwrap_or(80);
 
@@ -409,6 +808,9 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
                 return String::new();
             }
             let actual_end = std::cmp::min(end, len);
+            if actual_end <= start {
+                return String::new();
+            }
             chars[start..actual_end]
                 .iter()
                 .collect::<String>()
@@ -438,12 +840,9 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
 #[tauri::command]
 pub async fn check_winget() -> Result<bool, String> {
     info!("Verification de la presence de WinGet...");
-    let mut cmd = TokioCommand::new("powershell");
-    cmd.args([
-        "-NoProfile",
-        "-Command",
+    let mut cmd = powershell_command(
         "if (Get-Command winget -ErrorAction SilentlyContinue) { Write-Output 'true' } else { Write-Output 'false' }",
-    ]);
+    );
 
     let output = run_command_with_timeout(
         &mut cmd,
@@ -454,7 +853,7 @@ pub async fn check_winget() -> Result<bool, String> {
 
     match output {
         Ok(out) => {
-            let res = String::from_utf8_lossy(&out.stdout);
+            let res = decode_command_output(&out.stdout);
             let is_present = res.trim().eq_ignore_ascii_case("true");
             if is_present {
                 info!("WinGet est present sur le systeme.");
@@ -489,8 +888,7 @@ try {
 }
 "#;
 
-    let mut cmd = TokioCommand::new("powershell");
-    cmd.args(["-NoProfile", "-Command", script]);
+    let mut cmd = powershell_command(script);
 
     let output = run_command_with_timeout(
         &mut cmd,
@@ -499,13 +897,13 @@ try {
     )
     .await?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = decode_command_output(&output.stdout);
     if stdout.contains("SUCCESS") {
         info!("Installation de WinGet reussie.");
         return Ok("WinGet a ete installe avec succes a la derniere version.".to_string());
     }
 
-    let err_str = String::from_utf8_lossy(&output.stderr);
+    let err_str = decode_command_output(&output.stderr);
     error!("Echec de l'installation de WinGet : {}", err_str);
     Err(format!("Erreur d'installation : {}", err_str))
 }
@@ -524,12 +922,9 @@ pub async fn get_installation_status(id: String) -> Result<InstallationStatus, S
 #[tauri::command]
 pub async fn is_admin() -> Result<bool, String> {
     info!("Verification des droits Administrateur...");
-    let mut cmd = TokioCommand::new("powershell");
-    cmd.args([
-        "-NoProfile",
-        "-Command",
+    let mut cmd = powershell_command(
         "([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')",
-    ]);
+    );
 
     let output = run_command_with_timeout(
         &mut cmd,
@@ -540,7 +935,7 @@ pub async fn is_admin() -> Result<bool, String> {
 
     match output {
         Ok(out) => {
-            let res = String::from_utf8_lossy(&out.stdout);
+            let res = decode_command_output(&out.stdout);
             let admin = res.trim() == "True";
             info!("Droits Administrateur : {}", admin);
             Ok(admin)
@@ -603,9 +998,14 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["upgrade", "--accept-source-agreements"]);
 
-    let output = run_command_with_timeout(&mut cmd, WINGET_SEARCH_TIMEOUT, "la recherche de mises à jour").await?;
+    let output = run_command_with_timeout(
+        &mut cmd,
+        WINGET_SEARCH_TIMEOUT,
+        "la recherche de mises à jour",
+    )
+    .await?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = decode_command_output(&output.stdout);
     let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
     let lines: Vec<&str> = clean_stdout.lines().collect();
@@ -620,7 +1020,12 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
     let mut header_idx = None;
     for (idx, line) in lines.iter().enumerate().take(30) {
         let l = line.to_lowercase();
-        if l.contains("version") && (l.contains(" id ") || l.contains("identifiant") || l.starts_with("nom ") || l.starts_with("name ")) {
+        if l.contains("version")
+            && (l.contains(" id ")
+                || l.contains("identifiant")
+                || l.starts_with("nom ")
+                || l.starts_with("name "))
+        {
             header_idx = Some(idx);
             break;
         }
@@ -629,20 +1034,30 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
     let h_idx = match header_idx {
         Some(idx) => idx,
         None => {
-            info!("[check_upgrades] Entête non trouvée. Premières lignes: {:?}", &lines[..std::cmp::min(5, lines.len())]);
+            info!(
+                "[check_upgrades] Entête non trouvée. Premières lignes: {:?}",
+                &lines[..std::cmp::min(5, lines.len())]
+            );
             return Ok(results);
         }
     };
 
     let header_lower = lines[h_idx].to_lowercase();
-    info!("[check_upgrades] Header détecté à ligne {}: '{}'", h_idx, lines[h_idx]);
+    info!(
+        "[check_upgrades] Header détecté à ligne {}: '{}'",
+        h_idx, lines[h_idx]
+    );
 
     // Detect column positions using word-boundary matching
     let id_idx = find_col_pos(&header_lower, &["id", "identifiant"]).unwrap_or(40);
     let version_idx = find_col_pos(&header_lower, &["version"]).unwrap_or(id_idx + 30);
-    let available_idx = find_col_pos(&header_lower, &["disponible", "available"]).unwrap_or(version_idx + 20);
+    let available_idx =
+        find_col_pos(&header_lower, &["disponible", "available"]).unwrap_or(version_idx + 20);
     let source_idx = find_col_pos(&header_lower, &["source"]).unwrap_or(available_idx + 15);
-    info!("[check_upgrades] Colonnes: name=0, id={}, version={}, available={}, source={}", id_idx, version_idx, available_idx, source_idx);
+    info!(
+        "[check_upgrades] Colonnes: name=0, id={}, version={}, available={}, source={}",
+        id_idx, version_idx, available_idx, source_idx
+    );
 
     for line in lines.iter().skip(h_idx + 2) {
         if line.trim().is_empty() || line.starts_with('-') || line.starts_with('\u{2500}') {
@@ -651,12 +1066,23 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
 
         let chars: Vec<char> = line.chars().collect();
         let len = chars.len();
-        if len < id_idx { continue; }
+        if len < id_idx {
+            continue;
+        }
 
         let safe_slice = |start: usize, end: usize| -> String {
-            if start >= len { return String::new(); }
+            if start >= len {
+                return String::new();
+            }
             let actual_end = std::cmp::min(end, len);
-            chars[start..actual_end].iter().collect::<String>().trim().to_string()
+            if actual_end <= start {
+                return String::new();
+            }
+            chars[start..actual_end]
+                .iter()
+                .collect::<String>()
+                .trim()
+                .to_string()
         };
 
         let name = safe_slice(0, id_idx);
@@ -666,7 +1092,13 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
         let source = safe_slice(source_idx, len);
 
         if !id.trim().is_empty() && !id.contains("...") {
-            results.push(UpgradeResult { name, id, version, available, source });
+            results.push(UpgradeResult {
+                name,
+                id,
+                version,
+                available,
+                source,
+            });
         }
     }
 
@@ -675,7 +1107,7 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
 }
 
 #[tauri::command]
-pub async fn upgrade_software(id: String, name: String) -> Result<String, String> {
+pub async fn upgrade_software(app: AppHandle, id: String, name: String) -> Result<String, String> {
     info!("Tentative de mise à jour de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
@@ -690,15 +1122,22 @@ pub async fn upgrade_software(id: String, name: String) -> Result<String, String
         "--force",
     ]);
 
-    let output = run_command_with_timeout(
+    let output = run_command_streaming_with_timeout(
         &mut cmd,
         WINGET_INSTALL_TIMEOUT,
         &format!("la mise à jour de {}", name),
+        Some(ProgressContext {
+            app,
+            total: 1,
+            current_index: 1,
+            current_name: name.clone(),
+            action_label: "Mise à jour".to_string(),
+        }),
     )
     .await?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = decode_command_output(&output.stdout);
+    let stderr = decode_command_output(&output.stderr);
     let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
 
     if output.status.success() {
@@ -734,9 +1173,14 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["list", "--accept-source-agreements"]);
 
-    let output = run_command_with_timeout(&mut cmd, WINGET_SEARCH_TIMEOUT, "la récupération de la liste des logiciels").await?;
+    let output = run_command_with_timeout(
+        &mut cmd,
+        WINGET_SEARCH_TIMEOUT,
+        "la récupération de la liste des logiciels",
+    )
+    .await?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stdout = decode_command_output(&output.stdout);
     let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
     let lines: Vec<&str> = clean_stdout.lines().collect();
@@ -750,7 +1194,12 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     let mut header_idx = None;
     for (idx, line) in lines.iter().enumerate().take(30) {
         let l = line.to_lowercase();
-        if l.contains("version") && (l.contains(" id ") || l.contains("identifiant") || l.starts_with("nom ") || l.starts_with("name ")) {
+        if l.contains("version")
+            && (l.contains(" id ")
+                || l.contains("identifiant")
+                || l.starts_with("nom ")
+                || l.starts_with("name "))
+        {
             header_idx = Some(idx);
             break;
         }
@@ -759,20 +1208,30 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     let h_idx = match header_idx {
         Some(idx) => idx,
         None => {
-            info!("[get_installed] Entête non trouvée. Premières lignes: {:?}", &lines[..std::cmp::min(5, lines.len())]);
+            info!(
+                "[get_installed] Entête non trouvée. Premières lignes: {:?}",
+                &lines[..std::cmp::min(5, lines.len())]
+            );
             return Ok(results);
         }
     };
 
     let header_lower = lines[h_idx].to_lowercase();
-    info!("[get_installed] Header détecté à ligne {}: '{}'", h_idx, lines[h_idx]);
+    info!(
+        "[get_installed] Header détecté à ligne {}: '{}'",
+        h_idx, lines[h_idx]
+    );
 
     // Use word-boundary column detection
     let id_idx = find_col_pos(&header_lower, &["id", "identifiant"]).unwrap_or(40);
     let version_idx = find_col_pos(&header_lower, &["version"]).unwrap_or(id_idx + 30);
-    let available_idx = find_col_pos(&header_lower, &["disponible", "available"]).unwrap_or(version_idx + 20);
+    let available_idx =
+        find_col_pos(&header_lower, &["disponible", "available"]).unwrap_or(version_idx + 20);
     let source_idx = find_col_pos(&header_lower, &["source"]).unwrap_or(available_idx + 15);
-    info!("[get_installed] Colonnes: name=0, id={}, version={}, available={}, source={}", id_idx, version_idx, available_idx, source_idx);
+    info!(
+        "[get_installed] Colonnes: name=0, id={}, version={}, available={}, source={}",
+        id_idx, version_idx, available_idx, source_idx
+    );
 
     for line in lines.iter().skip(h_idx + 2) {
         if line.trim().is_empty() || line.starts_with('-') || line.starts_with('\u{2500}') {
@@ -781,12 +1240,23 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
 
         let chars: Vec<char> = line.chars().collect();
         let len = chars.len();
-        if len < id_idx { continue; }
+        if len < id_idx {
+            continue;
+        }
 
         let safe_slice = |start: usize, end: usize| -> String {
-            if start >= len { return String::new(); }
+            if start >= len {
+                return String::new();
+            }
             let actual_end = std::cmp::min(end, len);
-            chars[start..actual_end].iter().collect::<String>().trim().to_string()
+            if actual_end <= start {
+                return String::new();
+            }
+            chars[start..actual_end]
+                .iter()
+                .collect::<String>()
+                .trim()
+                .to_string()
         };
 
         let name = safe_slice(0, id_idx);
@@ -796,7 +1266,13 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
         let source = safe_slice(source_idx, len);
 
         if !id.trim().is_empty() && !id.contains("...") {
-            results.push(InstalledResult { name, id, version, available, source });
+            results.push(InstalledResult {
+                name,
+                id,
+                version,
+                available,
+                source,
+            });
         }
     }
 
@@ -805,7 +1281,11 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
 }
 
 #[tauri::command]
-pub async fn uninstall_software(id: String, name: String) -> Result<String, String> {
+pub async fn uninstall_software(
+    app: AppHandle,
+    id: String,
+    name: String,
+) -> Result<String, String> {
     info!("Tentative de désinstallation de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
@@ -818,15 +1298,22 @@ pub async fn uninstall_software(id: String, name: String) -> Result<String, Stri
         "--silent",
     ]);
 
-    let output = run_command_with_timeout(
+    let output = run_command_streaming_with_timeout(
         &mut cmd,
         WINGET_INSTALL_TIMEOUT,
         &format!("la désinstallation de {}", name),
+        Some(ProgressContext {
+            app,
+            total: 1,
+            current_index: 1,
+            current_name: name.clone(),
+            action_label: "Désinstallation".to_string(),
+        }),
     )
     .await?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = decode_command_output(&output.stdout);
+    let stderr = decode_command_output(&output.stderr);
     let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
 
     if output.status.success() {
@@ -835,7 +1322,10 @@ pub async fn uninstall_software(id: String, name: String) -> Result<String, Stri
     }
 
     if privilege_error_output(&normalized_output) {
-        error!("Erreur de privilèges lors de la désinstallation de {}", name);
+        error!(
+            "Erreur de privilèges lors de la désinstallation de {}",
+            name
+        );
         return Err(format!(
             "Erreur de privilèges : relancez NeoGet en tant qu'administrateur pour désinstaller {}.",
             name
@@ -882,15 +1372,27 @@ if ($Show -eq "OK") {{
         escaped_json
     );
 
-    let mut cmd = TokioCommand::new("powershell");
-    cmd.args(["-NoProfile", "-Command", &script]);
+    let mut cmd = powershell_command(&script);
 
-    let output = run_command_with_timeout(&mut cmd, Duration::from_secs(60), "l'export de configuration").await?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output = run_command_with_timeout(
+        &mut cmd,
+        Duration::from_secs(60),
+        "l'export de configuration",
+    )
+    .await?;
+    let stdout = decode_command_output(&output.stdout);
 
     if stdout.contains("SUCCESS:") {
-        let path = stdout.split("SUCCESS:").nth(1).unwrap_or("").trim().to_string();
-        Ok(format!("Configuration exportée avec succès dans : {}", path))
+        let path = stdout
+            .split("SUCCESS:")
+            .nth(1)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        Ok(format!(
+            "Configuration exportée avec succès dans : {}",
+            path
+        ))
     } else {
         Err("Export annulé".to_string())
     }
@@ -913,11 +1415,15 @@ if ($Show -eq "OK") {
 }
 "#;
 
-    let mut cmd = TokioCommand::new("powershell");
-    cmd.args(["-NoProfile", "-Command", script]);
+    let mut cmd = powershell_command(script);
 
-    let output = run_command_with_timeout(&mut cmd, Duration::from_secs(60), "l'import de configuration").await?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output = run_command_with_timeout(
+        &mut cmd,
+        Duration::from_secs(60),
+        "l'import de configuration",
+    )
+    .await?;
+    let stdout = decode_command_output(&output.stdout);
 
     if stdout.contains("SUCCESS:") {
         let json_str = stdout.split("SUCCESS:").nth(1).unwrap_or("").trim();
@@ -1002,11 +1508,15 @@ $Diagnostic = @{
 Write-Output (ConvertTo-Json $Diagnostic)
 "#;
 
-    let mut cmd = TokioCommand::new("powershell");
-    cmd.args(["-NoProfile", "-Command", script]);
+    let mut cmd = powershell_command(script);
 
-    let output = run_command_with_timeout(&mut cmd, POWERSHELL_CHECK_TIMEOUT, "la récupération du diagnostic").await?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output = run_command_with_timeout(
+        &mut cmd,
+        POWERSHELL_CHECK_TIMEOUT,
+        "la récupération du diagnostic",
+    )
+    .await?;
+    let stdout = decode_command_output(&output.stdout);
 
     let diag: SystemDiagnostic = serde_json::from_str(&stdout)
         .map_err(|e| format!("Erreur lors de l'analyse du rapport de diagnostic : {}", e))?;
@@ -1020,11 +1530,16 @@ pub async fn reset_winget_sources() -> Result<String, String> {
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["source", "reset", "--force"]);
 
-    let output = run_command_with_timeout(&mut cmd, Duration::from_secs(90), "la réinitialisation des sources").await?;
+    let output = run_command_with_timeout(
+        &mut cmd,
+        Duration::from_secs(90),
+        "la réinitialisation des sources",
+    )
+    .await?;
     if output.status.success() {
         Ok("Les sources WinGet ont été réinitialisées avec succès.".to_string())
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = decode_command_output(&output.stderr);
         Err(format!("Échec de la réinitialisation : {}", stderr))
     }
 }
@@ -1035,8 +1550,10 @@ pub async fn list_winget_sources() -> Result<Vec<WinGetSource>, String> {
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["source", "list"]);
 
-    let output = run_command_with_timeout(&mut cmd, POWERSHELL_CHECK_TIMEOUT, "le listing des sources").await?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let output =
+        run_command_with_timeout(&mut cmd, POWERSHELL_CHECK_TIMEOUT, "le listing des sources")
+            .await?;
+    let stdout = decode_command_output(&output.stdout);
     let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
 
@@ -1093,6 +1610,14 @@ mod tests {
     }
 
     #[test]
+    fn extract_percent_reads_explicit_percent_and_transfer_ratio() {
+        assert_eq!(extract_percent("Downloading package 42%"), Some(42.0));
+        assert_eq!(extract_percent("  25.0 MB / 100.0 MB"), Some(25.0));
+        assert_eq!(extract_percent("  12,5 MB / 50 MB"), Some(25.0));
+        assert_eq!(extract_percent("no progress here"), None);
+    }
+
+    #[test]
     fn installing_guard_blocks_parallel_and_releases() {
         IS_INSTALLING.store(false, Ordering::SeqCst);
         let first = InstallingGuard::acquire().expect("first lock should succeed");
@@ -1128,12 +1653,7 @@ mod tests {
     #[cfg(windows)]
     #[tokio::test]
     async fn run_command_with_timeout_reports_timeout() {
-        let mut cmd = TokioCommand::new("powershell");
-        cmd.args([
-            "-NoProfile",
-            "-Command",
-            "Start-Sleep -Seconds 2; Write-Output 'done'",
-        ]);
+        let mut cmd = powershell_command("Start-Sleep -Seconds 2; Write-Output 'done'");
 
         let result = run_command_with_timeout(&mut cmd, Duration::from_millis(100), "test");
         let error = result.await.expect_err("command should timeout");
@@ -1143,13 +1663,12 @@ mod tests {
     #[cfg(windows)]
     #[tokio::test]
     async fn run_command_with_timeout_allows_fast_command() {
-        let mut cmd = TokioCommand::new("powershell");
-        cmd.args(["-NoProfile", "-Command", "Write-Output 'ok'"]);
+        let mut cmd = powershell_command("Write-Output 'ok'");
 
         let output = run_command_with_timeout(&mut cmd, Duration::from_secs(5), "test")
             .await
             .expect("command should complete");
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = decode_command_output(&output.stdout);
         assert!(stdout.to_lowercase().contains("ok"));
     }
 
@@ -1172,7 +1691,10 @@ mod tests {
             Ok(ups) => {
                 println!("SUCCESS: Found {} upgrades", ups.len());
                 for up in ups.iter().take(5) {
-                    println!("  - {} ({}) [{} -> {}]", up.name, up.id, up.version, up.available);
+                    println!(
+                        "  - {} ({}) [{} -> {}]",
+                        up.name, up.id, up.version, up.available
+                    );
                 }
             }
             Err(e) => println!("ERROR in check_upgrades: {}", e),

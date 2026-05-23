@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, Terminal, Activity, ShieldAlert, Download, Upload, Trash2, Sun, Sparkles } from 'lucide-react'
+import { Activity, Download, Search, ShieldAlert, Sparkles, Sun, Terminal, Trash2, Upload } from 'lucide-react'
 import softwareData from '../../software.json'
-
 
 interface CommandPaletteProps {
   isOpen: boolean
@@ -15,9 +14,11 @@ interface PaletteAction {
   id: string
   title: string
   description: string
-  icon: React.ReactNode
+  icon: ReactNode
   actionKey: string
   category: 'Actions' | 'Logiciels'
+  packageId?: string
+  packageName?: string
 }
 
 export default function CommandPalette({ isOpen, onClose, onAction, onAddToCart }: CommandPaletteProps) {
@@ -25,17 +26,15 @@ export default function CommandPalette({ isOpen, onClose, onAction, onAddToCart 
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Actions list
-  const actions: PaletteAction[] = [
-    { id: 'diag', title: 'Lancer le diagnostic', description: 'Analyser la RAM, les disques et WinGet', icon: <Activity className="w-4 h-4" />, actionKey: 'diag', category: 'Actions' },
-    { id: 'fix', title: 'Réparer WinGet', description: 'Doctor Fix - Réinitialiser les index et sources', icon: <ShieldAlert className="w-4 h-4" />, actionKey: 'fix', category: 'Actions' },
-    { id: 'export', title: 'Exporter la configuration', description: 'Sauvegarder le panier local dans un fichier JSON', icon: <Upload className="w-4 h-4" />, actionKey: 'export', category: 'Actions' },
-    { id: 'import', title: 'Importer une configuration', description: 'Charger une liste de logiciels depuis un fichier JSON', icon: <Download className="w-4 h-4" />, actionKey: 'import', category: 'Actions' },
-    { id: 'clear', title: 'Vider le panier', description: 'Retirer tous les logiciels du panier actif', icon: <Trash2 className="w-4 h-4" />, actionKey: 'clear', category: 'Actions' },
-    { id: 'theme', title: 'Basculer le thème (Clair / Sombre)', description: 'Changer l\'apparence visuelle globale', icon: <Sun className="w-4 h-4" />, actionKey: 'theme', category: 'Actions' }
-  ]
+  const actions: PaletteAction[] = useMemo(() => [
+    { id: 'diag', title: 'Lancer le diagnostic', description: 'Analyser la RAM, les disques et WinGet', icon: <Activity className="h-4 w-4" />, actionKey: 'diag', category: 'Actions' },
+    { id: 'fix', title: 'Réparer WinGet', description: 'Réinitialiser les index et sources locales', icon: <ShieldAlert className="h-4 w-4" />, actionKey: 'fix', category: 'Actions' },
+    { id: 'export', title: 'Exporter la configuration', description: 'Sauvegarder le panier dans un fichier JSON', icon: <Upload className="h-4 w-4" />, actionKey: 'export', category: 'Actions' },
+    { id: 'import', title: 'Importer une configuration', description: 'Charger une liste de logiciels existante', icon: <Download className="h-4 w-4" />, actionKey: 'import', category: 'Actions' },
+    { id: 'clear', title: 'Vider le panier', description: 'Retirer tous les logiciels sélectionnés', icon: <Trash2 className="h-4 w-4" />, actionKey: 'clear', category: 'Actions' },
+    { id: 'theme', title: 'Basculer le thème', description: 'Alterner entre clair et sombre', icon: <Sun className="h-4 w-4" />, actionKey: 'theme', category: 'Actions' }
+  ], [])
 
-  // Flatten all apps from software.json to search in command palette
   const apps: PaletteAction[] = useMemo(() => {
     const list: PaletteAction[] = []
     softwareData.categories.forEach(cat => {
@@ -43,79 +42,68 @@ export default function CommandPalette({ isOpen, onClose, onAction, onAddToCart 
         list.push({
           id: app.package,
           title: app.name,
-          description: `Ajouter au panier (starter pack : ${cat.name})`,
-          icon: <Sparkles className="w-4 h-4 text-accent" />,
-          actionKey: `add:${app.package}:${app.name}`,
-          category: 'Logiciels'
+          description: `Ajouter au panier depuis ${cat.name}`,
+          icon: <Sparkles className="h-4 w-4" />,
+          actionKey: 'add',
+          category: 'Logiciels',
+          packageId: app.package,
+          packageName: app.name
         })
       })
     })
     return list
   }, [])
 
-  // Filtered items (combine Actions and Apps matching query)
   const filteredItems = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
     const all = [...actions, ...apps]
-    if (!query) return all.slice(0, 10) // Show first 10 items if empty
-    return all.filter(item =>
-      item.title.toLowerCase().includes(query.toLowerCase()) ||
-      item.description.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 10) // Limit to 10 results
-  }, [query])
+    if (!normalizedQuery) return all.slice(0, 10)
 
-  // Reset selection index when query changes
+    return all
+      .filter(item =>
+        item.title.toLowerCase().includes(normalizedQuery) ||
+        item.description.toLowerCase().includes(normalizedQuery) ||
+        item.id.toLowerCase().includes(normalizedQuery)
+      )
+      .slice(0, 10)
+  }, [actions, apps, query])
+
   useEffect(() => {
     setSelectedIndex(0)
   }, [query])
 
-  // Handle global keyboard triggers
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        if (isOpen) onClose()
-        else onClose() // We will let the parent toggle this
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
-
-  // Monitor keys when palette is open
   useEffect(() => {
     if (!isOpen) return
 
     const handlePaletteKeys = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex(prev => (prev + 1) % filteredItems.length)
+        setSelectedIndex(prev => filteredItems.length ? (prev + 1) % filteredItems.length : 0)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedIndex(prev => (prev - 1 + filteredItems.length) % filteredItems.length)
+        setSelectedIndex(prev => filteredItems.length ? (prev - 1 + filteredItems.length) % filteredItems.length : 0)
       } else if (e.key === 'Enter') {
         e.preventDefault()
-        if (filteredItems[selectedIndex]) {
-          triggerAction(filteredItems[selectedIndex])
-        }
+        const selected = filteredItems[selectedIndex]
+        if (selected) triggerAction(selected)
       } else if (e.key === 'Escape') {
         e.preventDefault()
         onClose()
       }
     }
 
-    // Auto focus input
-    setTimeout(() => inputRef.current?.focus(), 50)
-
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 50)
     window.addEventListener('keydown', handlePaletteKeys)
-    return () => window.removeEventListener('keydown', handlePaletteKeys)
-  }, [isOpen, filteredItems, selectedIndex, onClose])
+
+    return () => {
+      window.clearTimeout(focusTimer)
+      window.removeEventListener('keydown', handlePaletteKeys)
+    }
+  }, [filteredItems, isOpen, onClose, selectedIndex])
 
   const triggerAction = (item: PaletteAction) => {
-    if (item.actionKey.startsWith('add:')) {
-      const parts = item.actionKey.split(':')
-      const packageId = parts[1]
-      const name = parts[2]
-      onAddToCart(packageId, name)
+    if (item.actionKey === 'add' && item.packageId && item.packageName) {
+      onAddToCart(item.packageId, item.packageName)
     } else {
       onAction(item.actionKey)
     }
@@ -127,100 +115,88 @@ export default function CommandPalette({ isOpen, onClose, onAction, onAddToCart 
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop blur overlay */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[2000]"
+            className="fixed inset-0 z-[2000] bg-black/[0.58] backdrop-blur-md"
           />
 
-          {/* Palette Dialog box */}
-          <div className="fixed inset-x-4 top-[15vh] mx-auto max-w-xl z-[2001]">
+          <div className="fixed inset-x-4 top-[12vh] z-[2001] mx-auto max-w-2xl">
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: -20 }}
+              initial={{ scale: 0.97, opacity: 0, y: -14 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: -20 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-              className="bg-white/95 dark:bg-zinc-950/95 backdrop-blur-2xl rounded-2xl border border-gray-200/80 dark:border-zinc-800/80 shadow-[0_30px_70px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
+              exit={{ scale: 0.97, opacity: 0, y: -14 }}
+              transition={{ type: 'spring', damping: 27, stiffness: 260 }}
+              className="overflow-hidden rounded-lg border border-white/10 bg-[#0B1217]/[0.96] text-white shadow-[0_34px_90px_rgba(0,0,0,0.48)] backdrop-blur-2xl"
             >
-              {/* Search bar inside dialog */}
-              <div className="flex items-center px-4 border-b border-gray-150 dark:border-zinc-800/85">
-                <Search className="w-5 h-5 text-gray-400 mr-3" />
+              <div className="flex items-center border-b border-white/10 px-4">
+                <Search className="mr-3 h-5 w-5 text-slate-500" />
                 <input
                   ref={inputRef}
                   type="text"
-                  placeholder="Rechercher une action ou un logiciel (ex: vlc, diagnostic)..."
+                  placeholder="Rechercher une action, un logiciel, un package ID..."
                   value={query}
                   onChange={e => setQuery(e.target.value)}
-                  className="w-full py-4 bg-transparent border-none text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none text-sm font-medium"
+                  className="w-full border-none bg-transparent py-4 text-sm font-semibold text-white outline-none placeholder:text-slate-500"
                 />
-                <span className="text-[10px] bg-gray-100 dark:bg-zinc-900 border border-gray-250 dark:border-zinc-850 px-2 py-0.5 rounded text-gray-450 uppercase font-bold tracking-wide flex-shrink-0">
-                  ESC
-                </span>
+                <kbd className="command-key border-white/10 bg-white/[0.06] text-slate-500">ESC</kbd>
               </div>
 
-              {/* Items List */}
-              <div className="max-h-[340px] overflow-y-auto p-2 scrollbar-thin">
+              <div className="max-h-[420px] overflow-y-auto p-2">
                 {filteredItems.length > 0 ? (
                   <div className="space-y-1">
                     {filteredItems.map((item, idx) => {
-                      const isSelected = idx === selectedIndex
+                      const selected = idx === selectedIndex
                       return (
-                        <div
+                        <button
                           key={item.id}
                           onClick={() => triggerAction(item)}
                           onMouseEnter={() => setSelectedIndex(idx)}
-                          className={`flex items-center justify-between p-3.5 rounded-xl cursor-pointer transition-all duration-150 ${
-                            isSelected
-                              ? 'bg-primary dark:bg-primary/20 text-white dark:text-white'
-                              : 'hover:bg-gray-100 dark:hover:bg-zinc-900/60 text-gray-700 dark:text-gray-300'
+                          className={`flex w-full items-center justify-between gap-3 rounded-lg p-3 text-left transition ${
+                            selected ? 'bg-accent text-ink' : 'text-slate-300 hover:bg-white/[0.055]'
                           }`}
+                          type="button"
                         >
-                          <div className="flex items-center gap-3.5 min-w-0">
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                              isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 dark:bg-zinc-900 text-gray-400 dark:text-gray-500'
+                          <span className="flex min-w-0 items-center gap-3">
+                            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
+                              selected ? 'border-black/10 bg-black/10' : 'border-white/10 bg-white/[0.055] text-slate-500'
                             }`}>
                               {item.icon}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-sm leading-tight truncate">{item.title}</h4>
-                              <p className={`text-[10px] mt-0.5 font-medium truncate ${
-                                isSelected ? 'text-white/80' : 'text-gray-400'
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-extrabold">{item.title}</span>
+                              <span className={`mt-0.5 block truncate text-xs font-semibold ${
+                                selected ? 'text-ink/70' : 'text-slate-500'
                               }`}>
                                 {item.description}
-                              </p>
-                            </div>
-                          </div>
+                              </span>
+                            </span>
+                          </span>
 
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                              isSelected
-                                ? 'bg-white/25 text-white'
-                                : (item.category === 'Actions' ? 'bg-primary/10 text-primary' : 'bg-accent/15 text-accent')
+                          <span className="flex shrink-0 items-center gap-2">
+                            <span className={`rounded-md px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                              selected ? 'bg-black/10 text-ink' : item.category === 'Actions' ? 'bg-primary/10 text-primary' : 'bg-accent/10 text-accent'
                             }`}>
                               {item.category}
                             </span>
-                            {isSelected && (
-                              <Terminal className="w-3.5 h-3.5 text-white/90 animate-pulse" />
-                            )}
-                          </div>
-                        </div>
+                            {selected && <Terminal className="h-3.5 w-3.5" />}
+                          </span>
+                        </button>
                       )
                     })}
                   </div>
                 ) : (
-                  <div className="py-12 text-center text-gray-500 dark:text-gray-400 text-sm">
-                    Aucune action ou logiciel correspondant.
+                  <div className="py-12 text-center">
+                    <p className="text-sm font-semibold text-slate-400">Aucun résultat pour cette recherche.</p>
                   </div>
                 )}
               </div>
 
-              {/* Bottom Instructions Info */}
-              <div className="px-4 py-3 bg-gray-50 dark:bg-zinc-900/30 border-t border-gray-150 dark:border-zinc-800/85 flex justify-between text-[10px] text-gray-450 font-bold tracking-wide">
-                <span>↑↓ NAVIGUER • ENTER SÉLECTIONNER</span>
-                <span>NEOGET COMMANDS</span>
+              <div className="flex items-center justify-between border-t border-white/10 bg-white/[0.035] px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                <span>↑↓ Naviguer • Entrée sélectionner</span>
+                <span>NeoGet Commands</span>
               </div>
             </motion.div>
           </div>
