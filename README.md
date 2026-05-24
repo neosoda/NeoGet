@@ -2,94 +2,123 @@
 
 # NeoGet
 
-**Le cockpit Windows moderne pour installer, mettre à jour et nettoyer vos logiciels avec WinGet.**
+### Le cockpit Windows moderne pour installer, mettre a jour, nettoyer et optimiser un poste avec WinGet.
 
-NeoGet transforme une installation Windows fraîche en poste prêt à travailler : catalogue guidé, recherche WinGet, panier d'installation, mises à jour, désinstallation, diagnostic système et paramètres d'équipe dans une interface desktop premium.
+NeoGet rassemble le gestionnaire de paquets, le diagnostic systeme et un toolkit Windows dans une application desktop Tauri elegante, rapide et locale.
 
-![NeoGet application screenshot](docs/assets/neoget-app.png)
+<p>
+  <a href="releases/neoget.exe"><strong>Telecharger l'exe</strong></a>
+  ·
+  <a href="docs/SETUP.md">Installation dev</a>
+  ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a>
+  ·
+  <a href="docs/CHANGELOG.md">Changelog</a>
+</p>
 
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111)
 ![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=fff)
 ![Rust](https://img.shields.io/badge/Rust-backend-000?style=for-the-badge&logo=rust&logoColor=fff)
-![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=fff)
-![WinGet](https://img.shields.io/badge/WinGet-ready-22D3B6?style=for-the-badge&logo=windows&logoColor=111)
+![TypeScript](https://img.shields.io/badge/TypeScript-ready-3178C6?style=for-the-badge&logo=typescript&logoColor=fff)
+![WinGet](https://img.shields.io/badge/WinGet-native-22D3B6?style=for-the-badge&logo=windows&logoColor=111)
+
+<br />
+
+<img src="docs/assets/neoget-app.png" alt="Capture de NeoGet - Toolkit Windows" width="100%" />
 
 </div>
 
-## Ce que fait NeoGet
+## Pourquoi NeoGet
 
-NeoGet est une application desktop Tauri pour piloter WinGet sans terminal. L'objectif est simple : gagner du temps quand vous préparez, maintenez ou nettoyez une machine Windows.
+Installer une machine Windows proprement demande souvent plusieurs outils : WinGet en terminal, des scripts PowerShell, le panneau des applications, le planificateur de taches et quelques reglages registre. NeoGet reunit ces flux dans une interface unique, lisible et actionnable.
 
-| Besoin | Réponse NeoGet |
+| Workflow | Ce que NeoGet apporte |
 | --- | --- |
-| Préparer un nouveau PC | Starter Pack par catégories avec installation rapide |
-| Trouver un logiciel | Recherche globale dans les dépôts WinGet |
-| Installer plusieurs apps | Panier flottant + file d'installation suivie |
-| Garder le poste à jour | Centre de mises à jour basé sur `winget upgrade` |
-| Nettoyer une machine | Inventaire des apps installées + désinstallation |
-| Diagnostiquer WinGet | System Doctor, sources, droits admin, ressources système |
-| Réutiliser une config | Import/export de listes d'applications |
+| Installer un poste neuf | Starter Pack par categories, panier et installation groupee |
+| Trouver une app | Recherche WinGet globale avec ajout direct au panier |
+| Maintenir le parc logiciel | Centre de mises a jour et inventaire des apps installees |
+| Nettoyer Windows | Nettoyage cible des caches, temporaires, miniatures et corbeille |
+| Optimiser le systeme | Toggles Explorer, confidentialite, gaming, interface et energie |
+| Controler le demarrage | Gestion des entrees de demarrage et des taches planifiees |
+| Diagnostiquer WinGet | Verification des sources, droits, ressources et version WinGet |
 
-## Expérience
+## Fonctionnalites
 
-L'interface a été pensée comme une app produit moderne plutôt qu'un dashboard utilitaire :
+### Gestion logiciels
 
-- app shell sombre, lisible et chaleureux ;
-- navigation latérale claire ;
-- palette de commandes avec recherche rapide ;
-- cartes logiciels compactes et scannables ;
-- panier persistant pour préparer une installation groupée ;
-- états vides utiles, loaders propres et notifications discrètes ;
-- responsive pour inspection en fenêtre réduite ;
-- dark mode premium par défaut.
+- Catalogue Starter Pack organise par usages.
+- Recherche directe dans les depots WinGet.
+- Panier flottant pour preparer une installation multiple.
+- Suivi de progression avec file d'attente, erreurs visibles et overlay minimisable.
+- Mise a jour, inventaire et desinstallation via WinGet.
+- Import/export de configurations JSON.
 
-## Télécharger / lancer
+### Toolkit Windows
 
-L'exécutable compilé se trouve ici :
+- Optimisations rapides : extensions de fichiers, fichiers caches, vue compacte, menu contextuel classique, Widgets, Game DVR, Copilot, hibernation.
+- Nettoyage local : temporaires utilisateur, temporaires systeme, prefetch, miniatures, cache Windows Update, corbeille.
+- Inventaire AppX pour inspecter et supprimer les applications Windows amovibles.
+- Gestion des programmes au demarrage.
+- Gestion des taches planifiees non Microsoft.
+- Verrouillage clair des actions qui demandent les droits administrateur.
+
+### Diagnostic et robustesse
+
+- System Doctor avec RAM, disque, OS, mode developpeur et version WinGet.
+- Reinitialisation des sources WinGet depuis l'interface.
+- Parsing tolerant des sorties WinGet localisees.
+- Timeouts sur les commandes longues.
+- Blocage des installations concurrentes.
+- Sorties PowerShell forcees en UTF-8.
+
+## Installation
+
+### Utiliser l'executable
+
+L'executable de test est versionne dans le projet :
 
 ```powershell
 .\releases\neoget.exe
 ```
 
-WinGet doit être disponible sur la machine cible. Si l'installation ou la recherche ne répond pas correctement, ouvrez **System Doctor** pour vérifier les sources, les droits et l'état local.
+Pour les actions systeme avancees du Toolkit Windows, lancez NeoGet en administrateur. Les actions non compatibles avec les droits standard restent bloquees dans l'interface.
 
-## Développement
+### Preparer l'environnement dev
 
-### Prérequis
+Prérequis :
 
-- Windows 10/11
-- Node.js récent
-- Rust + Cargo
-- Tauri CLI via les dépendances du projet
-- WinGet installé pour tester les workflows système
+- Windows 10 ou 11
+- WinGet installe et fonctionnel
+- Node.js recent
+- Rust et Cargo
 
-### Installer les dépendances
+Installer les dependances :
 
 ```powershell
 npm install
 ```
 
-### Lancer l'app desktop
-
-```powershell
-npm run tauri:dev
-```
-
-### Lancer seulement le frontend
+Lancer le frontend seul :
 
 ```powershell
 npm run dev
 ```
 
-## Compiler l'exécutable
+Lancer l'application desktop :
 
-Build complet Tauri :
+```powershell
+npm run tauri:dev
+```
+
+## Build
+
+Compiler une version Tauri optimisee :
 
 ```powershell
 npm run tauri:build
 ```
 
-Tauri génère le binaire release dans le dossier Cargo. Pour publier dans le projet, copiez-le dans `releases` :
+Copier le binaire compile dans le dossier `releases` :
 
 ```powershell
 Copy-Item `
@@ -98,7 +127,7 @@ Copy-Item `
   -Force
 ```
 
-Le fichier attendu est :
+Le fichier attendu pour validation est :
 
 ```text
 releases/neoget.exe
@@ -109,10 +138,10 @@ releases/neoget.exe
 | Commande | Description |
 | --- | --- |
 | `npm run dev` | Lance le frontend Vite |
-| `npm run build` | Compile TypeScript et le bundle web |
-| `npm run tauri:dev` | Lance NeoGet en mode desktop développement |
+| `npm run build` | Compile TypeScript et genere le bundle web |
+| `npm run tauri:dev` | Lance NeoGet en mode desktop developpement |
 | `npm run tauri:nowatch` | Lance Tauri sans watcher |
-| `npm run tauri:build` | Compile l'application desktop optimisée |
+| `npm run tauri:build` | Compile l'application desktop release |
 | `npm run launch` | Build frontend puis lance Tauri sans watcher |
 
 ## Architecture
@@ -120,21 +149,25 @@ releases/neoget.exe
 ```text
 NeoGet/
 ├── src/
-│   ├── App.tsx                 Shell, navigation et workflows globaux
-│   ├── components/             Vues produit, panier, palette, toasts
-│   ├── hooks/                  Thème, panier, installation, statut système
-│   ├── index.css               Design system Tailwind
-│   └── types.ts                Contrats UI
+│   ├── App.tsx                         Shell, navigation et workflows globaux
+│   ├── components/
+│   │   ├── SoftwareGrid.tsx            Starter Pack et recherche WinGet
+│   │   ├── WindowsToolkitView.tsx      Toolkit Windows integre
+│   │   ├── SystemDoctorView.tsx        Diagnostic local
+│   │   └── ...                         Panier, palette, toasts, vues metier
+│   ├── hooks/                          Theme, panier, installation, statut
+│   ├── index.css                       Design system Tailwind
+│   └── types.ts                        Contrats UI
 ├── src-tauri/
-│   ├── src/commands.rs         Commandes WinGet, parsing, diagnostic
-│   ├── src/lib.rs              Enregistrement Tauri
-│   └── tauri.conf.json         Configuration desktop
+│   ├── src/commands.rs                 Commandes WinGet, PowerShell, systeme
+│   ├── src/lib.rs                      Enregistrement des commandes Tauri
+│   └── tauri.conf.json                 Configuration desktop
 ├── docs/
-│   └── assets/neoget-app.png   Capture utilisée par ce README
+│   └── assets/neoget-app.png           Capture utilisee par ce README
 ├── releases/
-│   └── neoget.exe              Exécutable prêt à lancer
-├── software.json               Catalogue Starter Pack
-└── package.json                Scripts frontend et Tauri
+│   └── neoget.exe                      Executable de test
+├── software.json                       Catalogue Starter Pack
+└── package.json                        Scripts frontend et Tauri
 ```
 
 ## Stack
@@ -143,35 +176,28 @@ NeoGet/
 | --- | --- |
 | Interface | React 19, TypeScript, Tailwind CSS, Framer Motion |
 | Desktop | Tauri 2 |
-| Système | Rust, Tokio, commandes WinGet |
+| Systeme | Rust, Tokio, PowerShell, WinGet |
 | Build | Vite, Cargo |
-| Catalogue | `software.json` + catalogues externes JSON |
+| Catalogue | `software.json` et catalogues JSON externes |
 
-## Sécurité et robustesse
+## Securite
 
-NeoGet garde les actions système côté Tauri :
+NeoGet execute les actions sensibles localement depuis Tauri. Les commandes systeme ne quittent pas la machine, les actions administrateur sont signalees, et les operations longues renvoient des messages d'erreur lisibles au lieu de rester silencieuses.
 
-- les commandes WinGet sont appelées depuis Rust ;
-- les installations concurrentes sont bloquées ;
-- les commandes longues ont des timeouts ;
-- les erreurs de privilèges sont reformulées ;
-- PowerShell est forcé en sortie UTF-8 pour éviter les caractères cassés ;
-- les sorties WinGet localisées sont parsées avec tolérance.
+## Roadmap
+
+- Profils reutilisables par type de machine.
+- Historique local des installations, mises a jour et suppressions.
+- Export enrichi avec versions et statut.
+- Packaging installable signe.
+- Meilleure edition visuelle des catalogues personnalises.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
-- [Installation développeur](docs/SETUP.md)
+- [Installation developpeur](docs/SETUP.md)
 - [Design system](docs/DESIGN_SYSTEM.md)
 - [Changelog](docs/CHANGELOG.md)
-
-## Roadmap
-
-- Historique local des installations et désinstallations.
-- Profils réutilisables pour plusieurs types de machines.
-- Export enrichi avec versions, sources et statut.
-- Meilleure édition du catalogue personnalisé.
-- Packaging installable et signature de l'exécutable.
 
 ## Licence
 
@@ -179,4 +205,8 @@ MIT
 
 ---
 
-Construit avec React, Rust, Tauri et une obsession très raisonnable pour les installations propres.
+<div align="center">
+
+Construit avec React, Rust, Tauri et WinGet pour garder Windows propre sans ouvrir dix consoles.
+
+</div>
