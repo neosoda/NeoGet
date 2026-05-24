@@ -1,5 +1,5 @@
 use log::{error, info, warn};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     process::{Output, Stdio},
     sync::{
@@ -528,6 +528,74 @@ fn powershell_command(script: &str) -> TokioCommand {
         &utf8_script,
     ]);
     cmd
+}
+
+fn escape_powershell_single_quoted(input: &str) -> String {
+    input.replace('\'', "''")
+}
+
+async fn run_powershell_json<T>(
+    script: &str,
+    timeout: Duration,
+    operation: &str,
+) -> Result<T, String>
+where
+    T: DeserializeOwned,
+{
+    let mut cmd = powershell_command(script);
+    let output = run_command_with_timeout(&mut cmd, timeout, operation).await?;
+    let stdout = decode_command_output(&output.stdout);
+    let stderr = decode_command_output(&output.stderr);
+
+    if !output.status.success() {
+        return Err(format!(
+            "Echec de {} (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+            operation,
+            output.status.code().unwrap_or(-1),
+            stdout,
+            stderr
+        ));
+    }
+
+    let trimmed = stdout.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{} n'a retourne aucune donnee JSON.", operation));
+    }
+
+    serde_json::from_str(trimmed).map_err(|e| {
+        format!(
+            "Erreur JSON pendant {} : {}\nSortie: {}",
+            operation, e, trimmed
+        )
+    })
+}
+
+async fn run_powershell_action(
+    script: &str,
+    timeout: Duration,
+    operation: &str,
+) -> Result<String, String> {
+    let mut cmd = powershell_command(script);
+    let output = run_command_with_timeout(&mut cmd, timeout, operation).await?;
+    let stdout = decode_command_output(&output.stdout);
+    let stderr = decode_command_output(&output.stderr);
+
+    if output.status.success() {
+        let message = stdout.trim();
+        if message.is_empty() {
+            Ok(format!("{} termine.", operation))
+        } else {
+            Ok(message.to_string())
+        }
+    } else {
+        Err(format!(
+            "Echec de {} (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+            operation,
+            output.status.code().unwrap_or(-1),
+            stdout,
+            stderr
+        ))
+    }
 }
 
 async fn run_winget_install(
@@ -1575,6 +1643,769 @@ pub async fn list_winget_sources() -> Result<Vec<WinGetSource>, String> {
         }
     }
     Ok(results)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WindowsTweak {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub category: String,
+    pub risk: String,
+    pub enabled: bool,
+    pub requires_admin: bool,
+    pub restart_required: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CleanupItem {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub size_bytes: u64,
+    pub item_count: u64,
+    pub requires_admin: bool,
+    pub selected: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WindowsAppPackage {
+    pub name: String,
+    pub package_full_name: String,
+    pub publisher: String,
+    pub version: String,
+    pub install_location: String,
+    pub is_framework: bool,
+    pub removable: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StartupEntry {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    pub location: String,
+    pub scope: String,
+    pub kind: String,
+    pub value_name: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ScheduledTaskEntry {
+    pub id: String,
+    pub task_name: String,
+    pub task_path: String,
+    pub state: String,
+    pub enabled: bool,
+}
+
+#[tauri::command]
+pub async fn get_windows_tweaks() -> Result<Vec<WindowsTweak>, String> {
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+
+function Get-DwordValue {
+    param([string]$Path, [string]$Name, [int]$Default)
+    try {
+        $value = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
+        if ($null -eq $value) { return $Default }
+        return [int]$value
+    } catch {
+        return $Default
+    }
+}
+
+function Test-Key {
+    param([string]$Path)
+    try { return (Test-Path -Path $Path) } catch { return $false }
+}
+
+$advanced = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+$contentDelivery = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+$advertising = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo'
+$copilot = 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot'
+$classicMenu = 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32'
+$hibernate = Get-DwordValue 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' 'HibernateEnabled' 1
+
+$items = @(
+    [pscustomobject]@{
+        id = 'show_file_extensions'
+        name = 'Afficher les extensions'
+        description = 'Rend visibles les extensions de fichiers dans l Explorateur.'
+        category = 'Explorateur'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'HideFileExt' 1) -eq 0)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'show_hidden_files'
+        name = 'Afficher les fichiers caches'
+        description = 'Affiche les fichiers et dossiers caches pour faciliter le diagnostic.'
+        category = 'Explorateur'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'Hidden' 2) -eq 1)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'compact_explorer'
+        name = 'Vue compacte Explorer'
+        description = 'Reduit l espacement vertical dans les listes de fichiers.'
+        category = 'Explorateur'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'UseCompactMode' 0) -eq 1)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'classic_context_menu'
+        name = 'Menu contextuel classique'
+        description = 'Restaure le menu clic droit complet de Windows 10 sur Windows 11.'
+        category = 'Explorateur'
+        risk = 'Modere'
+        enabled = (Test-Key $classicMenu)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'taskbar_seconds'
+        name = 'Secondes dans l horloge'
+        description = 'Affiche les secondes dans l horloge de la barre des taches.'
+        category = 'Interface'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'ShowSecondsInSystemClock' 0) -eq 1)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'hide_widgets'
+        name = 'Masquer les widgets'
+        description = 'Retire le bouton Widgets de la barre des taches.'
+        category = 'Interface'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'TaskbarDa' 1) -eq 0)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'disable_game_dvr'
+        name = 'Desactiver Game DVR'
+        description = 'Coupe l enregistrement en arriere-plan Xbox Game Bar.'
+        category = 'Gaming'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 1) -eq 0)
+        requires_admin = $false
+        restart_required = $null
+    },
+    [pscustomobject]@{
+        id = 'reduce_suggestions'
+        name = 'Reduire les suggestions'
+        description = 'Desactive plusieurs recommandations, publicites et contenus suggeres.'
+        category = 'Confidentialite'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advertising 'Enabled' 1) -eq 0)
+        requires_admin = $false
+        restart_required = $null
+    },
+    [pscustomobject]@{
+        id = 'disable_copilot'
+        name = 'Desactiver Copilot'
+        description = 'Applique la strategie utilisateur qui masque Windows Copilot.'
+        category = 'Confidentialite'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $copilot 'TurnOffWindowsCopilot' 0) -eq 1)
+        requires_admin = $false
+        restart_required = 'Session'
+    },
+    [pscustomobject]@{
+        id = 'disable_hibernation'
+        name = 'Desactiver l hibernation'
+        description = 'Desactive hiberfil.sys et libere l espace disque associe.'
+        category = 'Energie'
+        risk = 'Modere'
+        enabled = ($hibernate -eq 0)
+        requires_admin = $true
+        restart_required = $null
+    }
+)
+
+ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
+"#;
+
+    run_powershell_json(
+        script,
+        POWERSHELL_CHECK_TIMEOUT,
+        "la lecture des optimisations Windows",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn apply_windows_tweak(id: String, enabled: bool) -> Result<String, String> {
+    let ps_enabled = if enabled { "$true" } else { "$false" };
+    let script_template = match id.as_str() {
+        "show_file_extensions" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name HideFileExt -PropertyType DWord -Value $(if ($enable) { 0 } else { 1 }) -Force | Out-Null
+Write-Output 'Extensions de fichiers mises a jour.'
+"#
+        }
+        "show_hidden_files" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name Hidden -PropertyType DWord -Value $(if ($enable) { 1 } else { 2 }) -Force | Out-Null
+Write-Output 'Affichage des fichiers caches mis a jour.'
+"#
+        }
+        "compact_explorer" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name UseCompactMode -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
+Write-Output 'Vue compacte de l Explorateur mise a jour.'
+"#
+        }
+        "classic_context_menu" => {
+            r#"
+$enable = __ENABLED__
+$key = 'HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}'
+if ($enable) {
+    reg.exe add "$key\InprocServer32" /ve /f | Out-Null
+} else {
+    reg.exe delete $key /f 2>$null | Out-Null
+}
+Write-Output 'Menu contextuel classique mis a jour.'
+"#
+        }
+        "taskbar_seconds" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name ShowSecondsInSystemClock -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
+Write-Output 'Horloge de la barre des taches mise a jour.'
+"#
+        }
+        "hide_widgets" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name TaskbarDa -PropertyType DWord -Value $(if ($enable) { 0 } else { 1 }) -Force | Out-Null
+Write-Output 'Bouton Widgets mis a jour.'
+"#
+        }
+        "disable_game_dvr" => {
+            r#"
+$enable = __ENABLED__
+$capture = if ($enable) { 0 } else { 1 }
+New-Item -Path 'HKCU:\System\GameConfigStore' -Force | Out-Null
+New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR' -Force | Out-Null
+New-ItemProperty -Path 'HKCU:\System\GameConfigStore' -Name GameDVR_Enabled -PropertyType DWord -Value $capture -Force | Out-Null
+New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR' -Name AppCaptureEnabled -PropertyType DWord -Value $capture -Force | Out-Null
+Write-Output 'Xbox Game DVR mis a jour.'
+"#
+        }
+        "reduce_suggestions" => {
+            r#"
+$enable = __ENABLED__
+$value = if ($enable) { 0 } else { 1 }
+$paths = @(
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo',
+    'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
+)
+foreach ($path in $paths) { New-Item -Path $path -Force | Out-Null }
+New-ItemProperty -Path $paths[0] -Name Enabled -PropertyType DWord -Value $value -Force | Out-Null
+$names = @(
+    'ContentDeliveryAllowed',
+    'OemPreInstalledAppsEnabled',
+    'PreInstalledAppsEnabled',
+    'SilentInstalledAppsEnabled',
+    'SubscribedContent-338387Enabled',
+    'SubscribedContent-338388Enabled',
+    'SubscribedContent-338389Enabled',
+    'SubscribedContent-353694Enabled',
+    'SubscribedContent-353696Enabled',
+    'SystemPaneSuggestionsEnabled'
+)
+foreach ($name in $names) {
+    New-ItemProperty -Path $paths[1] -Name $name -PropertyType DWord -Value $value -Force | Out-Null
+}
+Write-Output 'Suggestions et contenus sponsorises mis a jour.'
+"#
+        }
+        "disable_copilot" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name TurnOffWindowsCopilot -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
+Write-Output 'Strategie Copilot mise a jour.'
+"#
+        }
+        "disable_hibernation" => {
+            r#"
+$enable = __ENABLED__
+if ($enable) {
+    powercfg.exe /hibernate off
+} else {
+    powercfg.exe /hibernate on
+}
+if ($LASTEXITCODE -ne 0) { throw 'powercfg a retourne une erreur. Relancez NeoGet en administrateur.' }
+Write-Output 'Etat de l hibernation mis a jour.'
+"#
+        }
+        _ => return Err(format!("Optimisation inconnue : {}", id)),
+    };
+
+    let script = script_template.replace("__ENABLED__", ps_enabled);
+    run_powershell_action(
+        &script,
+        Duration::from_secs(60),
+        "l'application de l'optimisation Windows",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn restart_explorer_shell() -> Result<String, String> {
+    let script = r#"
+Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 900
+Start-Process explorer.exe
+Write-Output 'Explorateur Windows redemarre.'
+"#;
+
+    run_powershell_action(
+        script,
+        Duration::from_secs(30),
+        "le redemarrage de l'Explorateur",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn scan_cleanup_items() -> Result<Vec<CleanupItem>, String> {
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+
+function Measure-CleanupPath {
+    param([string[]]$Paths, [string]$Filter = '*')
+    $bytes = [int64]0
+    $count = [int64]0
+    foreach ($path in $Paths) {
+        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path)) {
+            try {
+                Get-ChildItem -LiteralPath $path -Filter $Filter -Force -Recurse -ErrorAction SilentlyContinue |
+                    Where-Object { -not $_.PSIsContainer } |
+                    ForEach-Object {
+                        $bytes += [int64]$_.Length
+                        $count += 1
+                    }
+            } catch {}
+        }
+    }
+    [pscustomobject]@{ bytes = $bytes; count = $count }
+}
+
+$defs = @(
+    [pscustomobject]@{
+        id = 'user_temp'
+        name = 'Temporaires utilisateur'
+        description = 'Caches et fichiers temporaires du profil courant.'
+        paths = @($env:TEMP, $env:TMP)
+        filter = '*'
+        requires_admin = $false
+        selected = $true
+    },
+    [pscustomobject]@{
+        id = 'system_temp'
+        name = 'Temporaires Windows'
+        description = 'Fichiers temporaires systeme dans Windows\Temp.'
+        paths = @((Join-Path $env:WINDIR 'Temp'))
+        filter = '*'
+        requires_admin = $true
+        selected = $false
+    },
+    [pscustomobject]@{
+        id = 'prefetch'
+        name = 'Prefetch'
+        description = 'Cache de lancement Windows, reconstruit automatiquement.'
+        paths = @((Join-Path $env:WINDIR 'Prefetch'))
+        filter = '*'
+        requires_admin = $true
+        selected = $false
+    },
+    [pscustomobject]@{
+        id = 'thumbnail_cache'
+        name = 'Miniatures Explorer'
+        description = 'Base locale des miniatures d images et videos.'
+        paths = @((Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Explorer'))
+        filter = 'thumbcache*.db'
+        requires_admin = $false
+        selected = $true
+    },
+    [pscustomobject]@{
+        id = 'windows_update_cache'
+        name = 'Cache Windows Update'
+        description = 'Paquets telecharges par Windows Update.'
+        paths = @((Join-Path $env:WINDIR 'SoftwareDistribution\Download'))
+        filter = '*'
+        requires_admin = $true
+        selected = $false
+    },
+    [pscustomobject]@{
+        id = 'recycle_bin'
+        name = 'Corbeille'
+        description = 'Elements supprimes conserves sur les lecteurs locaux.'
+        paths = @('C:\$Recycle.Bin')
+        filter = '*'
+        requires_admin = $false
+        selected = $false
+    }
+)
+
+$items = foreach ($def in $defs) {
+    $measure = Measure-CleanupPath -Paths $def.paths -Filter $def.filter
+    [pscustomobject]@{
+        id = $def.id
+        name = $def.name
+        description = $def.description
+        size_bytes = [int64]$measure.bytes
+        item_count = [int64]$measure.count
+        requires_admin = [bool]$def.requires_admin
+        selected = [bool]$def.selected
+    }
+}
+
+ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
+"#;
+
+    run_powershell_json(script, Duration::from_secs(120), "le scan de nettoyage").await
+}
+
+#[tauri::command]
+pub async fn clean_windows_items(ids: Vec<String>) -> Result<String, String> {
+    if ids.is_empty() {
+        return Err("Aucun element de nettoyage selectionne.".to_string());
+    }
+
+    let ids_json = serde_json::to_string(&ids)
+        .map_err(|e| format!("Erreur de preparation du nettoyage : {}", e))?;
+    let escaped_ids = escape_powershell_single_quoted(&ids_json);
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+$ids = '__IDS_JSON__' | ConvertFrom-Json
+$processed = 0
+
+function Clear-Children {
+    param([string[]]$Paths, [string]$Filter = '*')
+    foreach ($path in $Paths) {
+        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path)) {
+            try {
+                Get-ChildItem -LiteralPath $path -Filter $Filter -Force -ErrorAction SilentlyContinue |
+                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            } catch {}
+        }
+    }
+}
+
+foreach ($id in @($ids)) {
+    switch ($id) {
+        'user_temp' {
+            Clear-Children -Paths @($env:TEMP, $env:TMP)
+            $processed++
+        }
+        'system_temp' {
+            Clear-Children -Paths @((Join-Path $env:WINDIR 'Temp'))
+            $processed++
+        }
+        'prefetch' {
+            Clear-Children -Paths @((Join-Path $env:WINDIR 'Prefetch'))
+            $processed++
+        }
+        'thumbnail_cache' {
+            Clear-Children -Paths @((Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Explorer')) -Filter 'thumbcache*.db'
+            $processed++
+        }
+        'windows_update_cache' {
+            Clear-Children -Paths @((Join-Path $env:WINDIR 'SoftwareDistribution\Download'))
+            $processed++
+        }
+        'recycle_bin' {
+            try { Clear-RecycleBin -Force -ErrorAction SilentlyContinue } catch {}
+            $processed++
+        }
+    }
+}
+
+Write-Output ("Nettoyage termine : {0} zone(s) traitee(s)." -f $processed)
+"#
+    .replace("__IDS_JSON__", &escaped_ids);
+
+    run_powershell_action(&script, Duration::from_secs(180), "le nettoyage Windows").await
+}
+
+#[tauri::command]
+pub async fn list_windows_app_packages() -> Result<Vec<WindowsAppPackage>, String> {
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+
+$items = Get-AppxPackage -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -and -not $_.IsFramework } |
+    Sort-Object Name |
+    Select-Object -First 500 |
+    ForEach-Object {
+        $nonRemovable = $false
+        try { $nonRemovable = [bool]$_.NonRemovable } catch {}
+        [pscustomobject]@{
+            name = [string]$_.Name
+            package_full_name = [string]$_.PackageFullName
+            publisher = [string]$_.Publisher
+            version = [string]$_.Version
+            install_location = [string]$_.InstallLocation
+            is_framework = [bool]$_.IsFramework
+            removable = (-not $nonRemovable)
+        }
+    }
+
+ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
+"#;
+
+    run_powershell_json(
+        script,
+        Duration::from_secs(90),
+        "le listing des applications Windows",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn remove_windows_app_package(package: String) -> Result<String, String> {
+    if package.trim().is_empty() {
+        return Err("Package AppX manquant.".to_string());
+    }
+
+    let escaped_package = escape_powershell_single_quoted(&package);
+    let script = r#"
+$package = '__PACKAGE__'
+Remove-AppxPackage -Package $package -ErrorAction Stop
+Write-Output ("Application Windows supprimee : {0}" -f $package)
+"#
+    .replace("__PACKAGE__", &escaped_package);
+
+    run_powershell_action(
+        &script,
+        Duration::from_secs(120),
+        "la suppression de l'application Windows",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_startup_entries() -> Result<Vec<StartupEntry>, String> {
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+
+function Get-StartupApprovedEnabled {
+    param([string]$Root, [string]$Kind, [string]$ValueName)
+    $approvedPath = if ($Kind -eq 'RunOnce') {
+        'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\RunOnce'
+    } elseif ($Kind -eq 'StartupFolder') {
+        'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder'
+    } else {
+        'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+    }
+
+    try {
+        $data = (Get-ItemProperty -Path "$Root\$approvedPath" -Name $ValueName -ErrorAction Stop).$ValueName
+        if ($data -is [byte[]] -and $data.Length -gt 0) {
+            return ($data[0] -ne 3)
+        }
+    } catch {}
+    return $true
+}
+
+function Add-RunEntries {
+    param([System.Collections.ArrayList]$Items, [string]$Root, [string]$Scope, [string]$Path, [string]$Kind)
+    $fullPath = "$Root\$Path"
+    try {
+        $props = Get-ItemProperty -Path $fullPath -ErrorAction Stop
+        foreach ($prop in $props.PSObject.Properties) {
+            if ($prop.Name -like 'PS*') { continue }
+            $enabled = Get-StartupApprovedEnabled -Root $Root -Kind $Kind -ValueName $prop.Name
+            [void]$Items.Add([pscustomobject]@{
+                id = "$Scope|$Kind|$($prop.Name)"
+                name = [string]$prop.Name
+                command = [string]$prop.Value
+                location = $fullPath
+                scope = $Scope
+                kind = $Kind
+                value_name = [string]$prop.Name
+                enabled = [bool]$enabled
+            })
+        }
+    } catch {}
+}
+
+function Add-StartupFolderEntries {
+    param([System.Collections.ArrayList]$Items, [string]$Path, [string]$Scope)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    try {
+        Get-ChildItem -LiteralPath $Path -Force -ErrorAction SilentlyContinue |
+            Where-Object { -not $_.PSIsContainer } |
+            ForEach-Object {
+                $root = if ($Scope -eq 'HKLM') { 'HKLM:' } else { 'HKCU:' }
+                $enabled = Get-StartupApprovedEnabled -Root $root -Kind 'StartupFolder' -ValueName $_.Name
+                [void]$Items.Add([pscustomobject]@{
+                    id = "$Scope|StartupFolder|$($_.Name)"
+                    name = [string]$_.BaseName
+                    command = [string]$_.FullName
+                    location = [string]$Path
+                    scope = $Scope
+                    kind = 'StartupFolder'
+                    value_name = [string]$_.Name
+                    enabled = [bool]$enabled
+                })
+            }
+    } catch {}
+}
+
+$items = New-Object System.Collections.ArrayList
+Add-RunEntries -Items $items -Root 'HKCU:' -Scope 'HKCU' -Path 'Software\Microsoft\Windows\CurrentVersion\Run' -Kind 'Run'
+Add-RunEntries -Items $items -Root 'HKCU:' -Scope 'HKCU' -Path 'Software\Microsoft\Windows\CurrentVersion\RunOnce' -Kind 'RunOnce'
+Add-RunEntries -Items $items -Root 'HKLM:' -Scope 'HKLM' -Path 'Software\Microsoft\Windows\CurrentVersion\Run' -Kind 'Run'
+Add-RunEntries -Items $items -Root 'HKLM:' -Scope 'HKLM' -Path 'Software\Microsoft\Windows\CurrentVersion\RunOnce' -Kind 'RunOnce'
+Add-StartupFolderEntries -Items $items -Path ([Environment]::GetFolderPath('Startup')) -Scope 'HKCU'
+Add-StartupFolderEntries -Items $items -Path ([Environment]::GetFolderPath('CommonStartup')) -Scope 'HKLM'
+
+ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
+"#;
+
+    run_powershell_json(script, Duration::from_secs(60), "le listing du demarrage").await
+}
+
+#[tauri::command]
+pub async fn set_startup_entry_enabled(
+    entry: StartupEntry,
+    enabled: bool,
+) -> Result<String, String> {
+    let entry_json = serde_json::to_string(&entry)
+        .map_err(|e| format!("Erreur de preparation du demarrage : {}", e))?;
+    let escaped_entry = escape_powershell_single_quoted(&entry_json);
+    let ps_enabled = if enabled { "$true" } else { "$false" };
+    let script = r#"
+$entry = '__ENTRY_JSON__' | ConvertFrom-Json
+$enable = __ENABLED__
+$bytes = if ($enable) {
+    [byte[]](2,0,0,0,0,0,0,0,0,0,0,0)
+} else {
+    [byte[]](3,0,0,0,0,0,0,0,0,0,0,0)
+}
+
+$root = if ($entry.scope -eq 'HKLM') { 'HKLM:' } else { 'HKCU:' }
+$approvedPath = if ($entry.kind -eq 'RunOnce') {
+    'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\RunOnce'
+} elseif ($entry.kind -eq 'StartupFolder') {
+    'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\StartupFolder'
+} else {
+    'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
+}
+
+$fullPath = "$root\$approvedPath"
+New-Item -Path $fullPath -Force | Out-Null
+New-ItemProperty -Path $fullPath -Name $entry.value_name -Value $bytes -PropertyType Binary -Force | Out-Null
+Write-Output ("Demarrage mis a jour : {0}" -f $entry.name)
+"#
+    .replace("__ENTRY_JSON__", &escaped_entry)
+    .replace("__ENABLED__", ps_enabled);
+
+    run_powershell_action(
+        &script,
+        Duration::from_secs(45),
+        "la mise a jour du demarrage",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn list_scheduled_tasks() -> Result<Vec<ScheduledTaskEntry>, String> {
+    let script = r#"
+$ProgressPreference = 'SilentlyContinue'
+$WarningPreference = 'SilentlyContinue'
+
+$items = Get-ScheduledTask -ErrorAction SilentlyContinue |
+    Where-Object { $_.TaskPath -notlike '\Microsoft\Windows\*' } |
+    Sort-Object TaskPath, TaskName |
+    Select-Object -First 300 |
+    ForEach-Object {
+        [pscustomobject]@{
+            id = "$($_.TaskPath)|$($_.TaskName)"
+            task_name = [string]$_.TaskName
+            task_path = [string]$_.TaskPath
+            state = [string]$_.State
+            enabled = ($_.State -ne 'Disabled')
+        }
+    }
+
+ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
+"#;
+
+    run_powershell_json(
+        script,
+        Duration::from_secs(60),
+        "le listing des taches planifiees",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn set_scheduled_task_enabled(
+    task_name: String,
+    task_path: String,
+    enabled: bool,
+) -> Result<String, String> {
+    if task_name.trim().is_empty() {
+        return Err("Nom de tache manquant.".to_string());
+    }
+
+    let escaped_name = escape_powershell_single_quoted(&task_name);
+    let escaped_path = escape_powershell_single_quoted(&task_path);
+    let ps_enabled = if enabled { "$true" } else { "$false" };
+    let script = r#"
+$taskName = '__TASK_NAME__'
+$taskPath = '__TASK_PATH__'
+$enable = __ENABLED__
+if ($enable) {
+    Enable-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction Stop | Out-Null
+} else {
+    Disable-ScheduledTask -TaskName $taskName -TaskPath $taskPath -ErrorAction Stop | Out-Null
+}
+Write-Output ("Tache planifiee mise a jour : {0}{1}" -f $taskPath, $taskName)
+"#
+    .replace("__TASK_NAME__", &escaped_name)
+    .replace("__TASK_PATH__", &escaped_path)
+    .replace("__ENABLED__", ps_enabled);
+
+    run_powershell_action(
+        &script,
+        Duration::from_secs(45),
+        "la mise a jour de la tache planifiee",
+    )
+    .await
 }
 
 #[cfg(test)]

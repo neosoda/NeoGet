@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Command,
+  Gauge,
   Globe2,
   Layers3,
   Minimize2,
@@ -28,6 +29,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import SystemDoctorView from './components/SystemDoctorView'
 import SettingsView from './components/SettingsView'
 import CommandPalette from './components/CommandPalette'
+import WindowsToolkitView from './components/WindowsToolkitView'
 import ToastContainer, { showToast } from './components/ToastContainer'
 
 import { useTheme } from './hooks/useTheme'
@@ -35,7 +37,7 @@ import { useSystemStatus } from './hooks/useSystemStatus'
 import { useCart } from './hooks/useCart'
 import { useInstallation } from './hooks/useInstallation'
 
-type ActiveTab = 'starter' | 'search' | 'updates' | 'installed' | 'diagnostic' | 'sources'
+type ActiveTab = 'starter' | 'search' | 'updates' | 'installed' | 'toolkit' | 'diagnostic' | 'sources'
 
 interface MenuItem {
   id: ActiveTab
@@ -49,6 +51,7 @@ const menuItems: MenuItem[] = [
   { id: 'search', title: 'Recherche', description: 'Explorer WinGet', icon: Globe2 },
   { id: 'updates', title: 'Mises à jour', description: 'Garder le poste net', icon: RefreshCw },
   { id: 'installed', title: 'Installés', description: 'Auditer les apps locales', icon: Monitor },
+  { id: 'toolkit', title: 'Toolkit Windows', description: 'Optimiser et nettoyer', icon: Gauge },
   { id: 'diagnostic', title: 'System Doctor', description: 'Réparer WinGet', icon: Activity },
   { id: 'sources', title: 'Sources', description: 'Catalogue et préférences', icon: Settings }
 ]
@@ -58,6 +61,7 @@ const tabTitles: Record<ActiveTab, string> = {
   search: 'Recherche WinGet',
   updates: 'Centre de mises à jour',
   installed: 'Logiciels installés',
+  toolkit: 'Toolkit Windows',
   diagnostic: 'System Doctor',
   sources: 'Sources et paramètres'
 }
@@ -67,6 +71,7 @@ const tabDescriptions: Record<ActiveTab, string> = {
   search: 'Trouvez rapidement un paquet officiel et ajoutez-le à votre flux d’installation.',
   updates: 'Scannez les versions disponibles et appliquez les mises à jour sans bruit.',
   installed: 'Inspectez les logiciels locaux, filtrez, puis désinstallez proprement.',
+  toolkit: 'Optimisez Windows, nettoyez les caches, gérez les apps système et contrôlez le démarrage.',
   diagnostic: 'Surveillez l’état du poste et réparez les sources WinGet si nécessaire.',
   sources: 'Ajustez le comportement d’installation et synchronisez vos catalogues.'
 }
@@ -365,6 +370,9 @@ function App() {
     } else if (actionKey === 'clear') {
       handleClearCart()
       showToast('Le panier a été vidé.', 'info')
+    } else if (actionKey === 'toolkit') {
+      setActiveTab('toolkit')
+      showToast('Toolkit Windows ouvert', 'info')
     } else if (actionKey === 'theme') {
       toggleTheme()
       showToast('Thème basculé', 'success')
@@ -542,6 +550,7 @@ function App() {
                 {activeTab === 'installed' && (
                   <InstalledView onUninstall={handleUninstallSoftware} />
                 )}
+                {activeTab === 'toolkit' && <WindowsToolkitView isAdmin={isAdmin} />}
                 {activeTab === 'diagnostic' && <SystemDoctorView />}
                 {activeTab === 'sources' && <SettingsView />}
               </ErrorBoundary>

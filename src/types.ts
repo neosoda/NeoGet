@@ -66,3 +66,53 @@ export interface WinGetSource {
   name: string
   argument: string
 }
+
+export interface WindowsTweak {
+  id: string
+  name: string
+  description: string
+  category: string
+  risk: string
+  enabled: boolean
+  requires_admin: boolean
+  restart_required: string | null
+}
+
+export interface CleanupItem {
+  id: string
+  name: string
+  description: string
+  size_bytes: number
+  item_count: number
+  requires_admin: boolean
+  selected: boolean
+}
+
+export interface WindowsAppPackage {
+  name: string
+  package_full_name: string
+  publisher: string
+  version: string
+  install_location: string
+  is_framework: boolean
+  removable: boolean
+}
+
+export interface StartupEntry {
+  id: string
+  name: string
+  command: string
+  location: string
+  scope: string
+  kind: string
+  value_name: string
+  enabled: boolean
+}
+
+export interface ScheduledTaskEntry {
+  id: string
+  task_name: string
+  task_path: string
+  state: string
+  enabled: boolean
+}

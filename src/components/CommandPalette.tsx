@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Download, Search, ShieldAlert, Sparkles, Sun, Terminal, Trash2, Upload } from 'lucide-react'
+import { Activity, Download, Gauge, Search, ShieldAlert, Sparkles, Sun, Terminal, Trash2, Upload } from 'lucide-react'
 import softwareData from '../../software.json'
 
 interface CommandPaletteProps {
@@ -29,6 +29,7 @@ export default function CommandPalette({ isOpen, onClose, onAction, onAddToCart 
   const actions: PaletteAction[] = useMemo(() => [
     { id: 'diag', title: 'Lancer le diagnostic', description: 'Analyser la RAM, les disques et WinGet', icon: <Activity className="h-4 w-4" />, actionKey: 'diag', category: 'Actions' },
     { id: 'fix', title: 'Réparer WinGet', description: 'Réinitialiser les index et sources locales', icon: <ShieldAlert className="h-4 w-4" />, actionKey: 'fix', category: 'Actions' },
+    { id: 'toolkit', title: 'Ouvrir le Toolkit Windows', description: 'Optimisations, nettoyage et démarrage', icon: <Gauge className="h-4 w-4" />, actionKey: 'toolkit', category: 'Actions' },
     { id: 'export', title: 'Exporter la configuration', description: 'Sauvegarder le panier dans un fichier JSON', icon: <Upload className="h-4 w-4" />, actionKey: 'export', category: 'Actions' },
     { id: 'import', title: 'Importer une configuration', description: 'Charger une liste de logiciels existante', icon: <Download className="h-4 w-4" />, actionKey: 'import', category: 'Actions' },
     { id: 'clear', title: 'Vider le panier', description: 'Retirer tous les logiciels sélectionnés', icon: <Trash2 className="h-4 w-4" />, actionKey: 'clear', category: 'Actions' },

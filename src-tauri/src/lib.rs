@@ -40,6 +40,17 @@ pub fn run() {
             commands::get_system_diagnostic,
             commands::reset_winget_sources,
             commands::list_winget_sources,
+            commands::get_windows_tweaks,
+            commands::apply_windows_tweak,
+            commands::restart_explorer_shell,
+            commands::scan_cleanup_items,
+            commands::clean_windows_items,
+            commands::list_windows_app_packages,
+            commands::remove_windows_app_package,
+            commands::list_startup_entries,
+            commands::set_startup_entry_enabled,
+            commands::list_scheduled_tasks,
+            commands::set_scheduled_task_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
