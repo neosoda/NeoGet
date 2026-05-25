@@ -1,0 +1,113 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Winhance.Core.Features.Common.Enums;
+using Winhance.Core.Features.Common.Interfaces;
+using Winhance.Core.Features.Common.Models;
+
+namespace Winhance.Infrastructure.Features.Common.Services;
+
+public class RecommendedSettingsApplier(
+    ICompatibleSettingsRegistry compatibleSettingsRegistry,
+    IRecommendedSettingsService recommendedSettingsService,
+    ILogService logService) : IRecommendedSettingsApplier
+{
+    public async Task ApplyRecommendedSettingsForFeatureAsync(string settingId, ISettingApplicationService settingApplicationService)
+    {
+        try
+        {
+            var featureId = compatibleSettingsRegistry.GetFeatureIdForSetting(settingId)
+                ?? throw new InvalidOperationException($"Setting '{settingId}' has no feature mapping");
+            logService.Log(LogLevel.Info, $"[RecommendedSettingsApplier] Starting to apply recommended settings for feature '{featureId}'");
+
+            var recommendedSettings = await recommendedSettingsService.GetRecommendedSettingsAsync(settingId).ConfigureAwait(false);
+            // Exclude the calling setting to prevent infinite recursion
+            // (e.g. updates-policy-mode calling ApplyRecommendedSettings which finds updates-policy-mode again)
+            var settingsList = recommendedSettings.Where(s => s.Id != settingId).ToList();
+
+            logService.Log(LogLevel.Info, $"[RecommendedSettingsApplier] Found {settingsList.Count} recommended settings for feature '{featureId}'");
+
+            if (settingsList.Count == 0)
+            {
+                logService.Log(LogLevel.Info, $"[RecommendedSettingsApplier] No recommended settings found for feature '{featureId}'");
+                return;
+            }
+
+            foreach (var setting in settingsList)
+            {
+                try
+                {
+                    var recommendedValue = RecommendedSettingsService.GetRecommendedValueForSetting(setting);
+                    logService.Log(LogLevel.Debug, $"[RecommendedSettingsApplier] Applying recommended setting '{setting.Id}' with value '{recommendedValue}'");
+
+                    if (setting.InputType == InputType.Toggle)
+                    {
+                        var registrySetting = setting.RegistrySettings?.FirstOrDefault(rs => rs.RecommendedValue != null);
+                        bool enableValue = false;
+
+                        if (registrySetting != null && recommendedValue != null)
+                        {
+                            enableValue = registrySetting.EnabledValue?.Any(ev => ev != null && recommendedValue.Equals(ev)) == true;
+                        }
+
+                        await settingApplicationService.ApplySettingAsync(new ApplySettingRequest
+                        {
+                            SettingId = setting.Id,
+                            Enable = enableValue,
+                            Value = recommendedValue,
+                            SkipValuePrerequisites = true
+                        }).ConfigureAwait(false);
+                    }
+                    else if (setting.InputType == InputType.Selection)
+                    {
+                        var recommendedIndex = RecommendedSettingsService.GetRecommendedSelectionIndex(setting);
+
+                        if (recommendedIndex.HasValue)
+                        {
+                            await settingApplicationService.ApplySettingAsync(new ApplySettingRequest
+                            {
+                                SettingId = setting.Id,
+                                Enable = true,
+                                Value = recommendedIndex.Value,
+                                SkipValuePrerequisites = true
+                            }).ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            await settingApplicationService.ApplySettingAsync(new ApplySettingRequest
+                            {
+                                SettingId = setting.Id,
+                                Enable = true,
+                                Value = recommendedValue,
+                                SkipValuePrerequisites = true
+                            }).ConfigureAwait(false);
+                        }
+                    }
+                    else
+                    {
+                        await settingApplicationService.ApplySettingAsync(new ApplySettingRequest
+                        {
+                            SettingId = setting.Id,
+                            Enable = true,
+                            Value = recommendedValue,
+                            SkipValuePrerequisites = true
+                        }).ConfigureAwait(false);
+                    }
+
+                    logService.Log(LogLevel.Debug, $"[RecommendedSettingsApplier] Successfully applied recommended setting '{setting.Id}'");
+                }
+                catch (Exception ex)
+                {
+                    logService.Log(LogLevel.Warning, $"[RecommendedSettingsApplier] Failed to apply recommended setting '{setting.Id}': {ex.Message}");
+                }
+            }
+
+            logService.Log(LogLevel.Info, $"[RecommendedSettingsApplier] Completed applying recommended settings for feature '{featureId}'");
+        }
+        catch (Exception ex)
+        {
+            logService.Log(LogLevel.Error, $"[RecommendedSettingsApplier] Error applying recommended settings: {ex.Message}");
+            throw;
+        }
+    }
+}
