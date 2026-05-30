@@ -7,6 +7,11 @@ function isTauriRuntime() {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
+function getInstallMode(): 'silent' | 'interactive' {
+  const mode = localStorage.getItem('neoget-install-mode')
+  return mode === 'interactive' ? 'interactive' : 'silent'
+}
+
 export function useInstallation(clearCart: () => void) {
   const [installing, setInstalling] = useState(false)
   const [batchStatus, setBatchStatus] = useState<ProgressPayload | null>(null)
@@ -59,7 +64,7 @@ export function useInstallation(clearCart: () => void) {
     }
     
     try {
-      const result = await invoke<string>('install_software', { id, name })
+      const result = await invoke<string>('install_software', { id, name, mode: getInstallMode() })
       console.info(`[App] Résultat installation ${name} :`, result)
       setBatchStatus({
         current_index: 1,
@@ -114,7 +119,7 @@ export function useInstallation(clearCart: () => void) {
     }
 
     try {
-      const result = await invoke('install_software_batch', { items: cart })
+      const result = await invoke('install_software_batch', { items: cart, mode: getInstallMode() })
       console.info('[App] Batch lancé avec succès :', result)
       clearCart() // Vider le panier après lancement
     } catch (e) {

@@ -601,21 +601,17 @@ async fn run_powershell_action(
 async fn run_winget_install(
     id: &str,
     name: &str,
+    mode: Option<&str>,
     progress: Option<ProgressContext>,
 ) -> Result<String, String> {
     info!("Tentative d'installation de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
-    cmd.args([
-        "install",
-        "--id",
-        id,
-        "--exact",
-        "--accept-package-agreements",
-        "--accept-source-agreements",
-        "--silent",
-        "--force",
-    ]);
+    cmd.args(["install", "--id", id, "--exact"]);
+    for arg in build_winget_runtime_args(mode) {
+        cmd.arg(arg);
+    }
+    cmd.arg("--force");
 
     let output = run_command_streaming_with_timeout(
         &mut cmd,
@@ -667,11 +663,17 @@ pub async fn get_software_list() -> Result<Vec<Software>, String> {
 }
 
 #[tauri::command]
-pub async fn install_software(app: AppHandle, id: String, name: String) -> Result<String, String> {
+pub async fn install_software(
+    app: AppHandle,
+    id: String,
+    name: String,
+    mode: Option<String>,
+) -> Result<String, String> {
     let _guard = InstallingGuard::acquire()?;
     run_winget_install(
         &id,
         &name,
+        mode.as_deref(),
         Some(ProgressContext {
             app,
             total: 1,
@@ -688,12 +690,14 @@ async fn install_software_internal(
     app: AppHandle,
     id: &str,
     name: &str,
+    mode: Option<&str>,
     total: usize,
     current_index: usize,
 ) -> Result<String, String> {
     run_winget_install(
         id,
         name,
+        mode,
         Some(ProgressContext {
             app,
             total,
@@ -709,6 +713,7 @@ async fn install_software_internal(
 pub async fn install_software_batch(
     app: AppHandle,
     items: Vec<BatchItem>,
+    mode: Option<String>,
 ) -> Result<String, String> {
     if items.is_empty() {
         warn!("Batch annule: aucun element fourni.");
@@ -752,7 +757,14 @@ pub async fn install_software_batch(
 
             let _ = app.emit("installation-progress", &payload);
 
-            match install_software_internal(app.clone(), &item.id, &item.name, total, current_index)
+            match install_software_internal(
+                app.clone(),
+                &item.id,
+                &item.name,
+                mode.as_deref(),
+                total,
+                current_index,
+            )
                 .await
             {
                 Ok(_) => {
@@ -1064,7 +1076,12 @@ fn find_col_pos(header: &str, candidates: &[&str]) -> Option<usize> {
 pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
     info!("Recherche des mises à jour disponibles via WinGet...");
     let mut cmd = TokioCommand::new("winget");
-    cmd.args(["upgrade", "--accept-source-agreements"]);
+    cmd.args([
+        "upgrade",
+        "--accept-source-agreements",
+        "--include-unknown",
+        "--disable-interactivity",
+    ]);
 
     let output = run_command_with_timeout(
         &mut cmd,
@@ -1175,20 +1192,20 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
 }
 
 #[tauri::command]
-pub async fn upgrade_software(app: AppHandle, id: String, name: String) -> Result<String, String> {
+pub async fn upgrade_software(
+    app: AppHandle,
+    id: String,
+    name: String,
+    mode: Option<String>,
+) -> Result<String, String> {
     info!("Tentative de mise à jour de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
-    cmd.args([
-        "upgrade",
-        "--id",
-        &id,
-        "--exact",
-        "--accept-package-agreements",
-        "--accept-source-agreements",
-        "--silent",
-        "--force",
-    ]);
+    cmd.args(["upgrade", "--id", &id, "--exact"]);
+    for arg in build_winget_runtime_args(mode.as_deref()) {
+        cmd.arg(arg);
+    }
+    cmd.arg("--force");
 
     let output = run_command_streaming_with_timeout(
         &mut cmd,
@@ -1353,18 +1370,15 @@ pub async fn uninstall_software(
     app: AppHandle,
     id: String,
     name: String,
+    mode: Option<String>,
 ) -> Result<String, String> {
     info!("Tentative de désinstallation de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
-    cmd.args([
-        "uninstall",
-        "--id",
-        &id,
-        "--exact",
-        "--accept-source-agreements",
-        "--silent",
-    ]);
+    cmd.args(["uninstall", "--id", &id, "--exact", "--accept-source-agreements"]);
+    if mode.unwrap_or_else(|| "silent".to_string()) == "silent" {
+        cmd.args(["--disable-interactivity", "--silent"]);
+    }
 
     let output = run_command_streaming_with_timeout(
         &mut cmd,
@@ -1523,6 +1537,21 @@ pub struct WinGetSource {
     pub argument: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WingetActionResult {
+    pub command: String,
+    pub message: String,
+}
+
+fn build_winget_runtime_args(mode: Option<&str>) -> Vec<&'static str> {
+    let mut args = vec!["--accept-package-agreements", "--accept-source-agreements"];
+    if mode.unwrap_or("silent") == "silent" {
+        args.push("--disable-interactivity");
+        args.push("--silent");
+    }
+    args
+}
+
 #[tauri::command]
 pub async fn get_system_diagnostic() -> Result<SystemDiagnostic, String> {
     info!("Récupération du diagnostic système via PowerShell...");
@@ -1610,6 +1639,193 @@ pub async fn reset_winget_sources() -> Result<String, String> {
         let stderr = decode_command_output(&output.stderr);
         Err(format!("Échec de la réinitialisation : {}", stderr))
     }
+}
+
+#[tauri::command]
+pub async fn update_winget_sources() -> Result<String, String> {
+    info!("Mise à jour des sources WinGet...");
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["source", "update"]);
+
+    let output =
+        run_command_with_timeout(&mut cmd, Duration::from_secs(90), "la mise à jour des sources")
+            .await?;
+    if output.status.success() {
+        Ok("Les sources WinGet ont été mises à jour.".to_string())
+    } else {
+        let stderr = decode_command_output(&output.stderr);
+        Err(format!("Échec de la mise à jour des sources : {}", stderr))
+    }
+}
+
+#[tauri::command]
+pub async fn remove_winget_source(name: String) -> Result<String, String> {
+    info!("Suppression de la source WinGet: {}", name);
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["source", "remove", &name]);
+
+    let output = run_command_with_timeout(
+        &mut cmd,
+        Duration::from_secs(90),
+        "la suppression de la source WinGet",
+    )
+    .await?;
+    if output.status.success() {
+        Ok(format!("Source '{}' supprimée.", name))
+    } else {
+        let stderr = decode_command_output(&output.stderr);
+        Err(format!("Échec suppression de la source '{}': {}", name, stderr))
+    }
+}
+
+#[tauri::command]
+pub async fn winget_upgrade_all(
+    app: AppHandle,
+    include_unknown: bool,
+    force: bool,
+    mode: Option<String>,
+) -> Result<String, String> {
+    info!("Mise à jour globale WinGet démarrée...");
+    let mut cmd = TokioCommand::new("winget");
+    cmd.args(["upgrade", "--all"]);
+    for arg in build_winget_runtime_args(mode.as_deref()) {
+        cmd.arg(arg);
+    }
+    if include_unknown {
+        cmd.arg("--include-unknown");
+    }
+    if force {
+        cmd.arg("--force");
+    }
+
+    let output = run_command_streaming_with_timeout(
+        &mut cmd,
+        WINGET_INSTALL_TIMEOUT,
+        "la mise à jour globale WinGet",
+        Some(ProgressContext {
+            app,
+            total: 1,
+            current_index: 1,
+            current_name: "Tous les paquets".to_string(),
+            action_label: "Mise à jour globale".to_string(),
+        }),
+    )
+    .await?;
+
+    let stdout = decode_command_output(&output.stdout);
+    let stderr = decode_command_output(&output.stderr);
+    if output.status.success() {
+        Ok("Mise à jour globale terminée.".to_string())
+    } else {
+        Err(format!(
+            "Échec de la mise à jour globale (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+            output.status.code().unwrap_or(-1),
+            stdout,
+            stderr
+        ))
+    }
+}
+
+#[tauri::command]
+pub async fn cleanup_winget_download_cache() -> Result<String, String> {
+    let script = r#"
+Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\*" -Force -ErrorAction SilentlyContinue
+Write-Output "Cache winget nettoye."
+"#;
+    run_powershell_action(script, Duration::from_secs(45), "le nettoyage du cache winget").await
+}
+
+#[tauri::command]
+pub async fn open_delivery_optimization_settings() -> Result<String, String> {
+    let script = r#"
+Start-Process "ms-settings:delivery-optimization-advanced"
+Write-Output "Parametres Delivery Optimization ouverts."
+"#;
+    run_powershell_action(
+        script,
+        Duration::from_secs(20),
+        "l'ouverture des parametres Delivery Optimization",
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn run_winget_maintenance_profile(
+    app: AppHandle,
+    profile: String,
+    mode: Option<String>,
+) -> Result<Vec<WingetActionResult>, String> {
+    let normalized = profile.trim().to_lowercase();
+    let mut actions: Vec<Vec<String>> = Vec::new();
+
+    match normalized.as_str() {
+        "fast-upgrade" => {
+            actions.push(vec!["source".into(), "update".into()]);
+            let mut upgrade = vec!["upgrade".into(), "--all".into()];
+            for arg in build_winget_runtime_args(mode.as_deref()) {
+                upgrade.push(arg.to_string());
+            }
+            upgrade.push("--include-unknown".into());
+            actions.push(upgrade);
+        }
+        "full-maintenance" => {
+            actions.push(vec!["source".into(), "update".into()]);
+            let mut upgrade = vec!["upgrade".into(), "--all".into()];
+            for arg in build_winget_runtime_args(mode.as_deref()) {
+                upgrade.push(arg.to_string());
+            }
+            upgrade.push("--include-unknown".into());
+            upgrade.push("--force".into());
+            actions.push(upgrade);
+        }
+        "repair-sources" => {
+            actions.push(vec!["source".into(), "reset".into(), "--force".into()]);
+            actions.push(vec!["source".into(), "update".into()]);
+        }
+        _ => {
+            return Err(format!(
+                "Profil '{}' inconnu. Utilisez: fast-upgrade, full-maintenance, repair-sources.",
+                profile
+            ));
+        }
+    }
+
+    let mut results = Vec::new();
+    for step in actions {
+        let mut cmd = TokioCommand::new("winget");
+        for arg in &step {
+            cmd.arg(arg);
+        }
+        let label = format!("winget {}", step.join(" "));
+        let output = run_command_streaming_with_timeout(
+            &mut cmd,
+            WINGET_INSTALL_TIMEOUT,
+            &label,
+            Some(ProgressContext {
+                app: app.clone(),
+                total: 1,
+                current_index: 1,
+                current_name: "Maintenance WinGet".to_string(),
+                action_label: "Maintenance".to_string(),
+            }),
+        )
+        .await?;
+        let stderr = decode_command_output(&output.stderr);
+        if !output.status.success() {
+            return Err(format!(
+                "Échec de '{}' (Code: {}). {}",
+                label,
+                output.status.code().unwrap_or(-1),
+                stderr
+            ));
+        }
+        results.push(WingetActionResult {
+            command: label,
+            message: "OK".to_string(),
+        });
+    }
+
+    Ok(results)
 }
 
 #[tauri::command]

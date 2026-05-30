@@ -10,6 +10,8 @@ export default function SettingsView() {
   const [installPath, setInstallPath] = useState('C:\\Program Files')
   const [installMode, setInstallMode] = useState<'silent' | 'interactive'>('silent')
   const [customCatalogUrl, setCustomCatalogUrl] = useState('')
+  const [includeUnknown, setIncludeUnknown] = useState(true)
+  const [forceUpgrade, setForceUpgrade] = useState(false)
 
   const fetchSources = async () => {
     setLoadingSources(true)
@@ -24,6 +26,84 @@ export default function SettingsView() {
     }
   }
 
+  const runMaintenanceProfile = async (profile: 'fast-upgrade' | 'full-maintenance' | 'repair-sources') => {
+    try {
+      const mode = installMode
+      await invoke('run_winget_maintenance_profile', { profile, mode })
+      showToast('Maintenance WinGet terminée.', 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Maintenance échouée : ${e}`, 'error')
+    }
+  }
+
+  const updateSources = async () => {
+    try {
+      const msg = await invoke<string>('update_winget_sources')
+      showToast(msg, 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec update sources : ${e}`, 'error')
+    }
+  }
+
+  const removeSource = async (name: string) => {
+    const ok = confirm(`Supprimer la source '${name}' ?`)
+    if (!ok) return
+    try {
+      const msg = await invoke<string>('remove_winget_source', { name })
+      showToast(msg, 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec suppression source : ${e}`, 'error')
+    }
+  }
+
+  const resetSources = async () => {
+    try {
+      const msg = await invoke<string>('reset_winget_sources')
+      showToast(msg, 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec reset sources : ${e}`, 'error')
+    }
+  }
+
+  const restoreDefaultSources = async () => {
+    try {
+      const msg = await invoke<string>('reset_winget_sources')
+      showToast(msg, 'success')
+      await updateSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec restauration sources : ${e}`, 'error')
+    }
+  }
+
+  const cleanupWingetCache = async () => {
+    try {
+      const msg = await invoke<string>('cleanup_winget_download_cache')
+      showToast(msg, 'success')
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec nettoyage cache : ${e}`, 'error')
+    }
+  }
+
+  const openDeliveryOptimization = async () => {
+    try {
+      const msg = await invoke<string>('open_delivery_optimization_settings')
+      showToast(msg, 'info')
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec ouverture paramètres : ${e}`, 'error')
+    }
+  }
+
   useEffect(() => {
     fetchSources()
 
@@ -35,12 +115,20 @@ export default function SettingsView() {
 
     const savedCatalog = localStorage.getItem('neoget-custom-catalog-url')
     if (savedCatalog) setCustomCatalogUrl(savedCatalog)
+
+    const savedIncludeUnknown = localStorage.getItem('neoget-winget-include-unknown')
+    if (savedIncludeUnknown !== null) setIncludeUnknown(savedIncludeUnknown === 'true')
+
+    const savedForceUpgrade = localStorage.getItem('neoget-winget-force-upgrade')
+    if (savedForceUpgrade !== null) setForceUpgrade(savedForceUpgrade === 'true')
   }, [])
 
   const handleSaveGeneral = (e: FormEvent) => {
     e.preventDefault()
     localStorage.setItem('neoget-install-path', installPath)
     localStorage.setItem('neoget-install-mode', installMode)
+    localStorage.setItem('neoget-winget-include-unknown', String(includeUnknown))
+    localStorage.setItem('neoget-winget-force-upgrade', String(forceUpgrade))
     showToast('Paramètres généraux enregistrés.', 'success')
   }
 
@@ -164,6 +252,17 @@ export default function SettingsView() {
                 </div>
               </div>
 
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.04]">
+                  <input type="checkbox" checked={includeUnknown} onChange={e => setIncludeUnknown(e.target.checked)} />
+                  Inclure inconnus (`--include-unknown`)
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.04]">
+                  <input type="checkbox" checked={forceUpgrade} onChange={e => setForceUpgrade(e.target.checked)} />
+                  Forcer upgrades (`--force`)
+                </label>
+              </div>
+
               <button type="submit" className="btn-primary">
                 Enregistrer les paramètres
               </button>
@@ -205,6 +304,44 @@ export default function SettingsView() {
               </div>
             </form>
           </div>
+
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                <Wrench className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Maintenance WinGet</h3>
+                <p className="text-sm font-medium text-slate-500">Profils rapides pour sources et upgrades globaux.</p>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" className="btn-secondary" onClick={updateSources}>
+                winget source update
+              </button>
+              <button type="button" className="btn-secondary" onClick={resetSources}>
+                winget source reset --force
+              </button>
+              <button type="button" className="btn-accent" onClick={() => runMaintenanceProfile('fast-upgrade')}>
+                Upgrade rapide
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => runMaintenanceProfile('repair-sources')}>
+                Réparer les sources
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => runMaintenanceProfile('full-maintenance')}>
+                Mode maintenance forcée
+              </button>
+              <button type="button" className="btn-secondary" onClick={cleanupWingetCache}>
+                Nettoyer cache winget
+              </button>
+              <button type="button" className="btn-secondary" onClick={openDeliveryOptimization}>
+                Ouvrir Delivery Optimization
+              </button>
+              <button type="button" className="btn-secondary" onClick={restoreDefaultSources}>
+                Restaurer sources par défaut
+              </button>
+            </div>
+          </div>
         </section>
 
         <aside className="space-y-5">
@@ -238,6 +375,15 @@ export default function SettingsView() {
                       <div className="min-w-0">
                         <h4 className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{src.name}</h4>
                         <code className="mt-1 block break-all text-[11px] font-semibold text-slate-500">{src.argument}</code>
+                        {src.name.toLowerCase() === 'msstore' && (
+                          <button
+                            type="button"
+                            onClick={() => removeSource(src.name)}
+                            className="mt-2 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-[11px] font-bold text-warning"
+                          >
+                            Retirer msstore
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

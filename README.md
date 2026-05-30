@@ -66,6 +66,10 @@ Installer une machine Windows proprement demande souvent plusieurs outils : WinG
 
 - System Doctor avec RAM, disque, OS, mode developpeur et version WinGet.
 - Reinitialisation des sources WinGet depuis l'interface.
+- Mise a jour des sources (`winget source update`) et suppression rapide de `msstore`.
+- Upgrade global non bloquant (`winget upgrade --all`) avec options `--include-unknown`, `--force`, `--silent`, `--disable-interactivity`.
+- Profils de maintenance WinGet : rapide, reparation des sources, maintenance forcee.
+- Nettoyage cache WinGet et ouverture directe des parametres Delivery Optimization.
 - Parsing tolerant des sorties WinGet localisees.
 - Timeouts sur les commandes longues.
 - Blocage des installations concurrentes.

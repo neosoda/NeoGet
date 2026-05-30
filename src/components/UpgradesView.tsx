@@ -93,9 +93,23 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
     if (upgrades.length === 0) return
     const confirmed = confirm(`Voulez-vous lancer la mise à jour de ${upgrades.length} logiciels ?`)
     if (!confirmed) return
-
-    for (const app of upgrades) {
-      await handleUpgrade(app.id, app.name)
+    setScanning(true)
+    setError(null)
+    try {
+      const mode = localStorage.getItem('neoget-install-mode') === 'interactive' ? 'interactive' : 'silent'
+      const includeUnknown = localStorage.getItem('neoget-winget-include-unknown') !== 'false'
+      const force = localStorage.getItem('neoget-winget-force-upgrade') === 'true'
+      await invoke<string>('winget_upgrade_all', {
+        include_unknown: includeUnknown,
+        force,
+        mode
+      })
+      await scanUpgrades()
+    } catch (e) {
+      console.error(e)
+      setError(`Échec de la mise à jour globale: ${e}`)
+    } finally {
+      setScanning(false)
     }
   }
 

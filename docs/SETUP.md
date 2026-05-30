@@ -43,6 +43,15 @@ Cette commande effectue le build final de l'application (bundle React + compilat
 npm run tauri:build
 ```
 L'exécutable final se trouvera dans : `src-tauri/target/release/neoget.exe`.
+Dans ce projet, le `target-dir` est personnalisé vers : `C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe`.
+
+Copie rapide dans le dossier de distribution du repo :
+```powershell
+Copy-Item `
+  "$env:USERPROFILE\.cargo\target\neoget\release\neoget.exe" `
+  ".\releases\neoget.exe" `
+  -Force
+```
 
 ---
 
@@ -71,3 +80,10 @@ Assurez-vous que les outils de build Visual Studio sont installés et à jour.
 
 ### WinGet non reconnu
 NeoGet tente de détecter WinGet au démarrage. Si vous lancez l'application dans un terminal en mode Administrateur, WinGet sera utilisé avec les privilèges élevés nécessaires.
+
+### WinGet lent
+Utiliser la vue **Sources et paramètres** :
+- `winget source update`
+- `winget source reset --force`
+- suppression de `msstore` (si non utilisé)
+- profil maintenance rapide ou forcée

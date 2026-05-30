@@ -6,6 +6,21 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le ve
 
 ---
 
+## [2.1.0] — 2026-05-30
+
+### ✨ Nouveautés
+- **WinGet non bloquant** : upgrade global via `winget upgrade --all` depuis l'interface.
+- **Arguments intelligents** : gestion UI des options `--include-unknown` et `--force`, plus mode `silent`/`interactive`.
+- **Sources WinGet** : actions dédiées `source update`, `source reset --force`, suppression `msstore`, restauration des sources.
+- **Maintenance guidée** : profils rapides (`fast-upgrade`, `repair-sources`, `full-maintenance`).
+- **Ops système WinGet** : nettoyage du cache DiagOutputDir et accès direct à Delivery Optimization.
+
+### 🔧 Changements
+- Les commandes install/upgrade/uninstall utilisent maintenant les options runtime cohérentes avec le mode d’exécution utilisateur.
+- Le flux "Tout mettre à jour" remplace la boucle applicative par un appel `winget` global plus rapide.
+
+---
+
 ## [2.0.0] — 2026-04-06
 
 ### ✨ Nouveautés (Réécriture Majeure)

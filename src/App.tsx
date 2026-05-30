@@ -38,6 +38,12 @@ import { useCart } from './hooks/useCart'
 import { useInstallation } from './hooks/useInstallation'
 
 type ActiveTab = 'starter' | 'search' | 'updates' | 'installed' | 'toolkit' | 'diagnostic' | 'sources'
+type InstallMode = 'silent' | 'interactive'
+
+function getInstallMode(): InstallMode {
+  const mode = localStorage.getItem('neoget-install-mode')
+  return mode === 'interactive' ? 'interactive' : 'silent'
+}
 
 interface MenuItem {
   id: ActiveTab
@@ -394,7 +400,7 @@ function App() {
     })
 
     try {
-      const result = await invoke<string>('upgrade_software', { id, name })
+      const result = await invoke<string>('upgrade_software', { id, name, mode: getInstallMode() })
       console.info(`[App] Résultat mise à jour ${name} :`, result)
       setBatchStatus({
         current_index: 1,
@@ -435,7 +441,7 @@ function App() {
     })
 
     try {
-      const result = await invoke<string>('uninstall_software', { id, name })
+      const result = await invoke<string>('uninstall_software', { id, name, mode: getInstallMode() })
       console.info(`[App] Résultat désinstallation ${name} :`, result)
       setBatchStatus({
         current_index: 1,
