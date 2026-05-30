@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ShoppingCart, Trash2, Zap, X } from 'lucide-react'
+import { PackageCheck, Trash2, X, Zap } from 'lucide-react'
 import { CartItem } from '../types'
 
 interface CartDrawerProps {
@@ -14,60 +14,60 @@ export default function CartDrawer({ items, onRemove, onClear, onInstall }: Cart
 
   return (
     <motion.div
-      initial={{ y: 100, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={{ y: 100, opacity: 0 }}
-      className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-40 w-full max-w-2xl px-4"
+      initial={{ y: 36, opacity: 0, scale: 0.98 }}
+      animate={{ y: 0, opacity: 1, scale: 1 }}
+      exit={{ y: 36, opacity: 0, scale: 0.98 }}
+      transition={{ type: 'spring', damping: 26, stiffness: 260 }}
+      className="fixed inset-x-0 bottom-4 z-40 mx-auto w-full max-w-3xl px-4"
     >
-      <div className="bg-white/85 dark:bg-gray-900/85 backdrop-blur-xl rounded-2xl shadow-[0_15px_50px_rgba(0,0,0,0.18)] border border-primary/20 dark:border-primary/30 p-4">
-        <div className="flex items-center justify-between gap-4">
-          {/* Summary info */}
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center relative">
-              <ShoppingCart className="text-primary w-5 h-5" />
-              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-gray-900">
-                {items.length}
-              </span>
-            </div>
-            <div className="hidden md:block">
-              <h4 className="font-extrabold text-sm text-gray-900 dark:text-white">Votre Panier</h4>
-              <p className="text-[10px] text-gray-500 font-medium">{items.length} prêt{items.length > 1 ? 's' : ''}</p>
-            </div>
+      <div className="rounded-lg border border-accent/25 bg-[#091116]/[0.92] p-3 text-white shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-accent/20 bg-accent/10 text-accent">
+            <PackageCheck className="h-5 w-5" />
           </div>
 
-          {/* Software Chips (Scrollable list of apps) */}
-          <div className="flex-1 flex gap-2 overflow-x-auto py-1 scrollbar-thin select-none max-w-full">
+          <div className="hidden min-w-[120px] sm:block">
+            <h4 className="text-sm font-extrabold">Panier prêt</h4>
+            <p className="text-xs font-semibold text-slate-500">
+              {items.length} logiciel{items.length > 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
             {items.map(item => (
               <div
                 key={item.id}
-                className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100/80 dark:bg-gray-800/80 text-[11px] font-semibold text-gray-700 dark:text-gray-250 border border-gray-250/30 dark:border-gray-700/50"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.065] px-2.5 py-1.5 text-xs font-bold text-slate-200"
               >
-                <span className="truncate max-w-[80px]">{item.name}</span>
+                <span className="max-w-[120px] truncate">{item.name}</span>
                 <button
                   onClick={() => onRemove(item.id)}
-                  className="p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-red-500 transition-all"
+                  className="rounded-md p-0.5 text-slate-500 transition hover:bg-white/10 hover:text-error"
+                  title={`Retirer ${item.name}`}
+                  type="button"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             ))}
           </div>
 
-          {/* Actions panel */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={onClear}
-              className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 text-gray-500 hover:text-red-500 transition-colors"
+              className="icon-button border-white/10 bg-white/[0.055] text-slate-400 hover:bg-white/[0.09] hover:text-error"
               title="Vider le panier"
+              type="button"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="h-4 w-4" />
             </button>
             <button
               onClick={onInstall}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-blue-600 text-white font-bold text-sm shadow-lg shadow-primary/20 hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] transition-all duration-300 hover:scale-[1.03] active:scale-95"
+              className="btn-accent px-4 py-2.5"
+              type="button"
             >
-              <Zap className="w-4 h-4" />
-              <span>Installer</span>
+              <Zap className="h-4 w-4" />
+              <span className="hidden sm:inline">Installer</span>
             </button>
           </div>
         </div>

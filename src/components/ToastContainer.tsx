@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2, XCircle, Info, X } from 'lucide-react'
+import { CheckCircle2, Info, X, XCircle } from 'lucide-react'
 
 export interface Toast {
   id: string
@@ -25,8 +25,7 @@ export default function ToastContainer() {
       }
       setToasts(prev => [...prev, newToast])
 
-      // Auto-remove after 4 seconds
-      setTimeout(() => {
+      window.setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== newToast.id))
       }, 4000)
     }
@@ -40,7 +39,7 @@ export default function ToastContainer() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full">
+    <div className="fixed bottom-5 right-5 z-[9999] flex w-[calc(100%-2rem)] max-w-sm flex-col gap-2">
       <AnimatePresence>
         {toasts.map((toast) => {
           const isSuccess = toast.type === 'success'
@@ -49,31 +48,32 @@ export default function ToastContainer() {
           return (
             <motion.div
               key={toast.id}
-              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              initial={{ opacity: 0, y: 18, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
-              className={`p-4 rounded-2xl shadow-xl backdrop-blur-md border flex items-start gap-3 justify-between ${
+              exit={{ opacity: 0, y: 12, scale: 0.98, transition: { duration: 0.16 } }}
+              className={`rounded-lg border p-3 shadow-soft-dark backdrop-blur-2xl ${
                 isSuccess
-                  ? 'bg-success/90 dark:bg-success/20 border-success/30 text-white dark:text-success'
+                  ? 'border-success/25 bg-success/15 text-success'
                   : isError
-                  ? 'bg-red-600/90 dark:bg-red-950/40 border-red-500/30 text-white dark:text-red-400'
-                  : 'bg-primary/95 dark:bg-gray-800/95 border-gray-200 dark:border-gray-700 text-white dark:text-white'
+                    ? 'border-error/25 bg-error/15 text-error'
+                    : 'border-primary/25 bg-primary/15 text-primary'
               }`}
             >
-              <div className="flex items-start gap-3">
-                {isSuccess && <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />}
-                {isError && <XCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />}
-                {!isSuccess && !isError && <Info className="w-5 h-5 flex-shrink-0 mt-0.5" />}
-                <p className="text-sm font-semibold leading-snug break-words">
-                  {toast.message}
-                </p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  {isSuccess && <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />}
+                  {isError && <XCircle className="mt-0.5 h-5 w-5 shrink-0" />}
+                  {!isSuccess && !isError && <Info className="mt-0.5 h-5 w-5 shrink-0" />}
+                  <p className="text-sm font-bold leading-5 text-slate-950 dark:text-white">{toast.message}</p>
+                </div>
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  className="rounded-md p-0.5 text-slate-500 transition hover:bg-white/10 hover:text-white"
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button
-                onClick={() => removeToast(toast.id)}
-                className="p-0.5 rounded-lg hover:bg-white/10 dark:hover:bg-white/5 transition-colors flex-shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </motion.div>
           )
         })}

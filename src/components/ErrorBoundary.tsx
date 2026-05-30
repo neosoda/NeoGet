@@ -27,34 +27,36 @@ export default class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 max-w-2xl mx-auto my-12 space-y-6 shadow-xl backdrop-blur-xl">
+        <div className="surface-strong mx-auto my-12 max-w-2xl space-y-6 border-error/25 bg-error/10 p-6 text-error">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-error/25 bg-error/15">
+              <AlertTriangle className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Oups ! Une erreur de rendu s'est produite</h2>
-              <p className="text-xs text-gray-500 mt-1 uppercase font-bold tracking-wider">NeoGet Error Boundary</p>
+              <h2 className="font-heading text-xl font-extrabold text-slate-950 dark:text-white">Erreur de rendu</h2>
+              <p className="mt-1 text-xs font-black uppercase tracking-[0.14em] text-slate-500">NeoGet Error Boundary</p>
             </div>
           </div>
 
-          <div className="bg-black/90 rounded-xl p-4 border border-zinc-850 font-mono text-xs text-red-400 break-all whitespace-pre-wrap leading-relaxed shadow-inner">
+          <div className="max-h-72 overflow-auto rounded-lg border border-white/10 bg-black/80 p-4 font-mono text-xs leading-relaxed text-rose-300 shadow-inner">
             {this.state.error?.toString()}
             {"\n\n"}
             {this.state.error?.stack}
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
-              className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-all duration-200 flex items-center gap-2 text-sm shadow-lg shadow-red-500/20"
+              className="inline-flex items-center gap-2 rounded-lg bg-error px-4 py-2.5 text-sm font-bold text-white transition hover:bg-rose-500"
+              type="button"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="h-4 w-4" />
               Réinitialiser le composant
             </button>
             <button
               onClick={() => window.location.reload()}
-              className="px-5 py-2.5 bg-zinc-850 hover:bg-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold transition-all duration-200 text-sm border border-zinc-700/30"
+              className="btn-secondary"
+              type="button"
             >
               Recharger la page
             </button>

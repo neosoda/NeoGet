@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Settings, Database, RefreshCw, Folder, Wrench, Code, Shield } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { Code2, Database, Folder, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Wrench } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { WinGetSource } from '../types'
 import { showToast } from './ToastContainer'
@@ -10,6 +10,8 @@ export default function SettingsView() {
   const [installPath, setInstallPath] = useState('C:\\Program Files')
   const [installMode, setInstallMode] = useState<'silent' | 'interactive'>('silent')
   const [customCatalogUrl, setCustomCatalogUrl] = useState('')
+  const [includeUnknown, setIncludeUnknown] = useState(true)
+  const [forceUpgrade, setForceUpgrade] = useState(false)
 
   const fetchSources = async () => {
     setLoadingSources(true)
@@ -18,15 +20,93 @@ export default function SettingsView() {
       setSources(results)
     } catch (e) {
       console.error(e)
-      showToast("Impossible de lister les sources WinGet.", "error")
+      showToast('Impossible de lister les sources WinGet.', 'error')
     } finally {
       setLoadingSources(false)
     }
   }
 
+  const runMaintenanceProfile = async (profile: 'fast-upgrade' | 'full-maintenance' | 'repair-sources') => {
+    try {
+      const mode = installMode
+      await invoke('run_winget_maintenance_profile', { profile, mode })
+      showToast('Maintenance WinGet terminée.', 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Maintenance échouée : ${e}`, 'error')
+    }
+  }
+
+  const updateSources = async () => {
+    try {
+      const msg = await invoke<string>('update_winget_sources')
+      showToast(msg, 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec update sources : ${e}`, 'error')
+    }
+  }
+
+  const removeSource = async (name: string) => {
+    const ok = confirm(`Supprimer la source '${name}' ?`)
+    if (!ok) return
+    try {
+      const msg = await invoke<string>('remove_winget_source', { name })
+      showToast(msg, 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec suppression source : ${e}`, 'error')
+    }
+  }
+
+  const resetSources = async () => {
+    try {
+      const msg = await invoke<string>('reset_winget_sources')
+      showToast(msg, 'success')
+      await fetchSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec reset sources : ${e}`, 'error')
+    }
+  }
+
+  const restoreDefaultSources = async () => {
+    try {
+      const msg = await invoke<string>('reset_winget_sources')
+      showToast(msg, 'success')
+      await updateSources()
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec restauration sources : ${e}`, 'error')
+    }
+  }
+
+  const cleanupWingetCache = async () => {
+    try {
+      const msg = await invoke<string>('cleanup_winget_download_cache')
+      showToast(msg, 'success')
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec nettoyage cache : ${e}`, 'error')
+    }
+  }
+
+  const openDeliveryOptimization = async () => {
+    try {
+      const msg = await invoke<string>('open_delivery_optimization_settings')
+      showToast(msg, 'info')
+    } catch (e) {
+      console.error(e)
+      showToast(`Échec ouverture paramètres : ${e}`, 'error')
+    }
+  }
+
   useEffect(() => {
     fetchSources()
-    // Load config from localStorage
+
     const savedPath = localStorage.getItem('neoget-install-path')
     if (savedPath) setInstallPath(savedPath)
 
@@ -35,35 +115,45 @@ export default function SettingsView() {
 
     const savedCatalog = localStorage.getItem('neoget-custom-catalog-url')
     if (savedCatalog) setCustomCatalogUrl(savedCatalog)
+
+    const savedIncludeUnknown = localStorage.getItem('neoget-winget-include-unknown')
+    if (savedIncludeUnknown !== null) setIncludeUnknown(savedIncludeUnknown === 'true')
+
+    const savedForceUpgrade = localStorage.getItem('neoget-winget-force-upgrade')
+    if (savedForceUpgrade !== null) setForceUpgrade(savedForceUpgrade === 'true')
   }, [])
 
-  const handleSaveGeneral = (e: React.FormEvent) => {
+  const handleSaveGeneral = (e: FormEvent) => {
     e.preventDefault()
     localStorage.setItem('neoget-install-path', installPath)
     localStorage.setItem('neoget-install-mode', installMode)
-    showToast("Paramètres généraux enregistrés !", "success")
+    localStorage.setItem('neoget-winget-include-unknown', String(includeUnknown))
+    localStorage.setItem('neoget-winget-force-upgrade', String(forceUpgrade))
+    showToast('Paramètres généraux enregistrés.', 'success')
   }
 
-  const handleSaveCatalogUrl = async (e: React.FormEvent) => {
+  const resetCatalog = () => {
+    setCustomCatalogUrl('')
+    localStorage.removeItem('neoget-custom-catalog-url')
+    localStorage.removeItem('neoget-custom-software')
+    showToast('Catalogue réinitialisé.', 'info')
+    window.dispatchEvent(new Event('catalog-updated'))
+  }
+
+  const handleSaveCatalogUrl = async (e: FormEvent) => {
     e.preventDefault()
     if (!customCatalogUrl) {
-      localStorage.removeItem('neoget-custom-catalog-url')
-      localStorage.removeItem('neoget-custom-software')
-      showToast("Catalogue personnalisé réinitialisé au starter pack d'origine.", "info")
-      window.dispatchEvent(new Event('catalog-updated'))
+      resetCatalog()
       return
     }
 
     try {
-      // Validate by fetching URL content
-      showToast("Téléchargement du catalogue externe...", "info")
+      showToast('Téléchargement du catalogue externe...', 'info')
       const response = await fetch(customCatalogUrl)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
 
-      // Basic validation of keys
       if (data && Array.isArray(data.categories)) {
-        // Flat map custom software and save in localStorage as local custom apps
         const list: any[] = []
         data.categories.forEach((cat: any) => {
           if (cat.software && Array.isArray(cat.software)) {
@@ -80,164 +170,232 @@ export default function SettingsView() {
 
         localStorage.setItem('neoget-custom-catalog-url', customCatalogUrl)
         localStorage.setItem('neoget-custom-software', JSON.stringify(list))
-        showToast("Nouveau catalogue importé et synchronisé !", "success")
+        showToast('Nouveau catalogue importé et synchronisé.', 'success')
         window.dispatchEvent(new Event('catalog-updated'))
       } else {
         throw new Error("Structure JSON invalide. 'categories' absent ou incorrect.")
       }
     } catch (e) {
       console.error(e)
-      showToast(`Échec du chargement : ${e}`, "error")
+      showToast(`Échec du chargement : ${e}`, 'error')
     }
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Left Column: General Configuration & Custom Catalog */}
-      <div className="lg:col-span-2 space-y-8">
-
-        {/* General Settings */}
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-6 border-b border-gray-150 dark:border-zinc-800 pb-4">
-            <Settings className="w-5 h-5 text-primary" />
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white">Paramètres Généraux</h3>
+    <div className="space-y-5 pb-24">
+      <div className="surface-strong p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="page-title">Sources et paramètres</h2>
+            <p className="page-copy mt-2">
+              Ajustez le mode d’installation, le chemin par défaut et les catalogues partagés de votre environnement.
+            </p>
           </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-accent/20 bg-accent/10 text-accent">
+            <SlidersHorizontal className="h-5 w-5" />
+          </div>
+        </div>
+      </div>
 
-          <form onSubmit={handleSaveGeneral} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-400 mb-1.5 flex items-center gap-1">
-                  <Folder className="w-3.5 h-3.5" />
-                  Dossier d'installation par défaut
-                </label>
-                <input
-                  type="text"
-                  value={installPath}
-                  onChange={e => setInstallPath(e.target.value)}
-                  className="input-field font-mono text-xs"
-                />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="space-y-5">
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                <Settings className="h-5 w-5" />
               </div>
-
               <div>
-                <label className="block text-xs font-bold uppercase text-gray-400 mb-1.5 flex items-center gap-1">
-                  <Wrench className="w-3.5 h-3.5" />
-                  Mode d'exécution des installateurs
-                </label>
-                <div className="grid grid-cols-2 p-1 bg-gray-100 dark:bg-zinc-900 rounded-xl border border-gray-200/50 dark:border-zinc-800/60">
-                  <button
-                    type="button"
-                    onClick={() => setInstallMode('silent')}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
-                      installMode === 'silent'
-                        ? 'bg-white dark:bg-zinc-750 shadow-sm text-primary'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    Silencieux
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInstallMode('interactive')}
-                    className={`py-1.5 text-xs font-bold rounded-lg transition-all ${
-                      installMode === 'interactive'
-                        ? 'bg-white dark:bg-zinc-750 shadow-sm text-primary'
-                        : 'text-gray-500'
-                    }`}
-                  >
-                    Interactif
-                  </button>
-                </div>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Paramètres généraux</h3>
+                <p className="text-sm font-medium text-slate-500">Préférences locales conservées sur ce poste.</p>
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="btn-primary py-2.5 px-6 rounded-xl text-sm"
-            >
-              Enregistrer les paramètres
-            </button>
-          </form>
-        </div>
+            <form onSubmit={handleSaveGeneral} className="mt-5 space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    <Folder className="h-3.5 w-3.5" />
+                    Dossier d’installation
+                  </span>
+                  <input
+                    type="text"
+                    value={installPath}
+                    onChange={e => setInstallPath(e.target.value)}
+                    className="input-field font-mono"
+                  />
+                </label>
 
-        {/* Custom Remote Catalog JSON URL */}
-        <div className="card p-6 border-accent/15 bg-gradient-to-b from-transparent to-accent/5">
-          <div className="flex items-center gap-3 mb-6 border-b border-gray-150 dark:border-zinc-800 pb-4">
-            <Code className="w-5 h-5 text-accent" />
-            <h3 className="font-bold text-lg text-gray-900 dark:text-white">Synchronisation de Catalogue Externe</h3>
+                <div>
+                  <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                    <Wrench className="h-3.5 w-3.5" />
+                    Mode d’exécution
+                  </span>
+                  <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-white/10 dark:bg-white/[0.045]">
+                    {[
+                      ['silent', 'Silencieux'],
+                      ['interactive', 'Interactif']
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setInstallMode(value as 'silent' | 'interactive')}
+                        className={`rounded-md px-3 py-2 text-sm font-bold transition ${
+                          installMode === value
+                            ? 'bg-white text-slate-950 shadow-sm dark:bg-white dark:text-slate-950'
+                            : 'text-slate-500 hover:text-slate-950 dark:hover:text-white'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.04]">
+                  <input type="checkbox" checked={includeUnknown} onChange={e => setIncludeUnknown(e.target.checked)} />
+                  Inclure inconnus (`--include-unknown`)
+                </label>
+                <label className="flex items-center gap-2 rounded-lg border border-slate-200/70 bg-slate-50 px-3 py-2 text-sm font-semibold dark:border-white/10 dark:bg-white/[0.04]">
+                  <input type="checkbox" checked={forceUpgrade} onChange={e => setForceUpgrade(e.target.checked)} />
+                  Forcer upgrades (`--force`)
+                </label>
+              </div>
+
+              <button type="submit" className="btn-primary">
+                Enregistrer les paramètres
+              </button>
+            </form>
           </div>
 
-          <form onSubmit={handleSaveCatalogUrl} className="space-y-6">
-            <div>
-              <p className="text-xs text-gray-550 dark:text-gray-400 mb-4 leading-relaxed">
-                Renseignez l'URL d'un fichier JSON distant contenant votre propre liste d'applications personnalisées. Cela remplacera dynamiquement les applications du Starter Pack pour toute votre équipe ou entreprise.
-              </p>
-              <div className="flex gap-2">
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-accent/20 bg-accent/10 text-accent">
+                <Code2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Catalogue externe</h3>
+                <p className="text-sm font-medium text-slate-500">Synchronisez une liste d’applications pour votre équipe.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveCatalogUrl} className="mt-5 space-y-4">
+              <label className="block">
+                <span className="mb-2 block text-xs font-black uppercase tracking-[0.14em] text-slate-500">URL JSON</span>
                 <input
                   type="url"
                   placeholder="https://votre-site.com/catalogue-perso.json"
                   value={customCatalogUrl}
                   onChange={e => setCustomCatalogUrl(e.target.value)}
-                  className="input-field text-sm"
+                  className="input-field"
                 />
+              </label>
+
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" className="btn-accent">
+                  Télécharger et synchroniser
+                </button>
+                {customCatalogUrl && (
+                  <button type="button" onClick={resetCatalog} className="btn-secondary">
+                    Réinitialiser
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                <Wrench className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Maintenance WinGet</h3>
+                <p className="text-sm font-medium text-slate-500">Profils rapides pour sources et upgrades globaux.</p>
               </div>
             </div>
-
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="btn-accent py-2.5 px-6 rounded-xl text-sm"
-              >
-                Télécharger & Synchroniser
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" className="btn-secondary" onClick={updateSources}>
+                winget source update
               </button>
-              {customCatalogUrl && (
-                <button
-                  type="button"
-                  onClick={() => { setCustomCatalogUrl(''); localStorage.removeItem('neoget-custom-catalog-url'); localStorage.removeItem('neoget-custom-software'); showToast("Catalogue réinitialisé.", "info"); window.dispatchEvent(new Event('catalog-updated')) }}
-                  className="btn-secondary py-2.5 px-6 rounded-xl text-sm"
-                >
-                  Réinitialiser
-                </button>
+              <button type="button" className="btn-secondary" onClick={resetSources}>
+                winget source reset --force
+              </button>
+              <button type="button" className="btn-accent" onClick={() => runMaintenanceProfile('fast-upgrade')}>
+                Upgrade rapide
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => runMaintenanceProfile('repair-sources')}>
+                Réparer les sources
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => runMaintenanceProfile('full-maintenance')}>
+                Mode maintenance forcée
+              </button>
+              <button type="button" className="btn-secondary" onClick={cleanupWingetCache}>
+                Nettoyer cache winget
+              </button>
+              <button type="button" className="btn-secondary" onClick={openDeliveryOptimization}>
+                Ouvrir Delivery Optimization
+              </button>
+              <button type="button" className="btn-secondary" onClick={restoreDefaultSources}>
+                Restaurer sources par défaut
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside className="space-y-5">
+          <div className="surface-strong p-5">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+                  <Database className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">Dépôts actifs</h3>
+                  <p className="text-xs font-semibold text-slate-500">{sources.length} source(s) WinGet</p>
+                </div>
+              </div>
+              <button onClick={fetchSources} disabled={loadingSources} className="icon-button" type="button" title="Actualiser les sources">
+                <RefreshCw className={`h-4 w-4 ${loadingSources ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              {loadingSources ? (
+                <div className="space-y-2">
+                  <div className="skeleton-line h-14" />
+                  <div className="skeleton-line h-14" />
+                </div>
+              ) : sources.length > 0 ? (
+                sources.map((src, idx) => (
+                  <div key={`${src.name}-${idx}`} className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+                    <div className="flex items-start gap-2">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                      <div className="min-w-0">
+                        <h4 className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{src.name}</h4>
+                        <code className="mt-1 block break-all text-[11px] font-semibold text-slate-500">{src.argument}</code>
+                        {src.name.toLowerCase() === 'msstore' && (
+                          <button
+                            type="button"
+                            onClick={() => removeSource(src.name)}
+                            className="mt-2 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-[11px] font-bold text-warning"
+                          >
+                            Retirer msstore
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm font-medium text-slate-500 dark:border-white/10">
+                  Aucun dépôt actif détecté.
+                </p>
               )}
             </div>
-          </form>
-        </div>
-      </div>
-
-      {/* Right Column: WinGet Repositories sources summary */}
-      <div className="space-y-6">
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-6 border-b border-gray-150 dark:border-zinc-800 pb-4">
-            <div className="flex items-center gap-3">
-              <Database className="w-5 h-5 text-primary" />
-              <h3 className="font-bold text-lg text-gray-900 dark:text-white">Dépôts Actifs ({sources.length})</h3>
-            </div>
-            <button
-              onClick={fetchSources}
-              disabled={loadingSources}
-              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loadingSources ? 'animate-spin' : ''}`} />
-            </button>
           </div>
-
-          <div className="space-y-4">
-            {loadingSources ? (
-              <p className="text-center py-6 text-xs text-gray-550 animate-pulse">Chargement...</p>
-            ) : sources.length > 0 ? (
-              sources.map((src, idx) => (
-                <div key={idx} className="p-3.5 rounded-xl bg-gray-50 dark:bg-zinc-900/40 border border-gray-150 dark:border-zinc-800/80 flex items-start gap-2.5">
-                  <Shield className="w-4 h-4 text-success flex-shrink-0 mt-1" />
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-xs text-gray-900 dark:text-white leading-tight truncate">{src.name}</h4>
-                    <code className="text-[9px] font-mono text-gray-450 block break-all mt-1">{src.argument}</code>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-center py-6 text-xs text-gray-500">Aucun dépôt actif détecté.</p>
-            )}
-          </div>
-        </div>
+        </aside>
       </div>
     </div>
   )

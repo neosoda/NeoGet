@@ -1,6 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertCircle, PackageOpen, Globe, RefreshCw, Monitor, Activity, Settings, Minimize2, CheckCircle2, X, Package, Shield, Search } from 'lucide-react'
+import {
+  Activity,
+  AlertCircle,
+  CheckCircle2,
+  Command,
+  Gauge,
+  Globe2,
+  Layers3,
+  Minimize2,
+  Monitor,
+  Package,
+  PackageOpen,
+  RefreshCw,
+  Search,
+  Settings,
+  Shield,
+  X
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import Header from './components/Header'
 import SoftwareGrid from './components/SoftwareGrid'
@@ -11,6 +29,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import SystemDoctorView from './components/SystemDoctorView'
 import SettingsView from './components/SettingsView'
 import CommandPalette from './components/CommandPalette'
+import WindowsToolkitView from './components/WindowsToolkitView'
 import ToastContainer, { showToast } from './components/ToastContainer'
 
 import { useTheme } from './hooks/useTheme'
@@ -18,25 +37,204 @@ import { useSystemStatus } from './hooks/useSystemStatus'
 import { useCart } from './hooks/useCart'
 import { useInstallation } from './hooks/useInstallation'
 
-// HTML5 Confetti Canvas Celebration Component
+type ActiveTab = 'starter' | 'search' | 'updates' | 'installed' | 'toolkit' | 'diagnostic' | 'sources'
+type InstallMode = 'silent' | 'interactive'
+
+function getInstallMode(): InstallMode {
+  const mode = localStorage.getItem('neoget-install-mode')
+  return mode === 'interactive' ? 'interactive' : 'silent'
+}
+
+interface MenuItem {
+  id: ActiveTab
+  title: string
+  description: string
+  icon: LucideIcon
+}
+
+const menuItems: MenuItem[] = [
+  { id: 'starter', title: 'Starter Pack', description: 'Composer une base saine', icon: PackageOpen },
+  { id: 'search', title: 'Recherche', description: 'Explorer WinGet', icon: Globe2 },
+  { id: 'updates', title: 'Mises à jour', description: 'Garder le poste net', icon: RefreshCw },
+  { id: 'installed', title: 'Installés', description: 'Auditer les apps locales', icon: Monitor },
+  { id: 'toolkit', title: 'Toolkit Windows', description: 'Optimiser et nettoyer', icon: Gauge },
+  { id: 'diagnostic', title: 'System Doctor', description: 'Réparer WinGet', icon: Activity },
+  { id: 'sources', title: 'Sources', description: 'Catalogue et préférences', icon: Settings }
+]
+
+const tabTitles: Record<ActiveTab, string> = {
+  starter: 'Starter Pack',
+  search: 'Recherche WinGet',
+  updates: 'Centre de mises à jour',
+  installed: 'Logiciels installés',
+  toolkit: 'Toolkit Windows',
+  diagnostic: 'System Doctor',
+  sources: 'Sources et paramètres'
+}
+
+const tabDescriptions: Record<ActiveTab, string> = {
+  starter: 'Choisissez les apps essentielles, préparez le panier, puis lancez une installation propre.',
+  search: 'Trouvez rapidement un paquet officiel et ajoutez-le à votre flux d’installation.',
+  updates: 'Scannez les versions disponibles et appliquez les mises à jour sans bruit.',
+  installed: 'Inspectez les logiciels locaux, filtrez, puis désinstallez proprement.',
+  toolkit: 'Optimisez Windows, nettoyez les caches, gérez les apps système et contrôlez le démarrage.',
+  diagnostic: 'Surveillez l’état du poste et réparez les sources WinGet si nécessaire.',
+  sources: 'Ajustez le comportement d’installation et synchronisez vos catalogues.'
+}
+
+function BrandMark() {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/[0.06] text-accent shadow-soft-dark">
+        <Package className="h-5 w-5" />
+        <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-[#0C1216] bg-lime" />
+      </div>
+      <div className="min-w-0">
+        <div className="font-heading text-lg font-extrabold leading-none text-white">NeoGet</div>
+        <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500">WinGet prêt</div>
+      </div>
+    </div>
+  )
+}
+
+function Sidebar({
+  activeTab,
+  onTabChange,
+  onOpenCommand,
+  isAdmin
+}: {
+  activeTab: ActiveTab
+  onTabChange: (tab: ActiveTab) => void
+  onOpenCommand: () => void
+  isAdmin: boolean
+}) {
+  return (
+    <aside className="hidden w-[282px] shrink-0 flex-col border-r border-white/10 bg-[#081014]/[0.92] px-4 py-4 text-slate-300 backdrop-blur-2xl lg:flex">
+      <div className="space-y-5">
+        <BrandMark />
+
+        <button
+          onClick={onOpenCommand}
+          className="group flex w-full items-center justify-between rounded-lg border border-white/10 bg-white/[0.055] px-3 py-2.5 text-left transition hover:border-white/20 hover:bg-white/[0.085]"
+          type="button"
+        >
+          <span className="flex min-w-0 items-center gap-2 text-sm font-semibold text-slate-400">
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="truncate">Palette de commandes</span>
+          </span>
+          <span className="flex items-center gap-1 text-slate-500">
+            <Command className="h-3.5 w-3.5" />
+            <kbd className="command-key border-white/10 bg-white/[0.06] text-slate-500">K</kbd>
+          </span>
+        </button>
+
+        <nav className="space-y-1">
+          {menuItems.map((item) => {
+            const Icon = item.icon
+            const isActive = activeTab === item.id
+
+            return (
+              <button
+                key={item.id}
+                onClick={() => onTabChange(item.id)}
+                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition ${
+                  isActive
+                    ? 'text-white'
+                    : 'text-slate-500 hover:bg-white/[0.055] hover:text-slate-200'
+                }`}
+                type="button"
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="active-sidebar-item"
+                    className="absolute inset-0 rounded-lg border border-accent/20 bg-accent/[0.105]"
+                    transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+                  />
+                )}
+                <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                  isActive ? 'bg-accent text-ink' : 'bg-white/[0.055] text-slate-500'
+                }`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className="relative min-w-0">
+                  <span className="block truncate text-sm font-bold">{item.title}</span>
+                  <span className="block truncate text-[11px] font-medium text-slate-500">{item.description}</span>
+                </span>
+              </button>
+            )
+          })}
+        </nav>
+      </div>
+
+      <div className="mt-auto space-y-3">
+        <div className="rounded-lg border border-white/10 bg-white/[0.045] p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Session</p>
+              <p className="mt-1 text-sm font-extrabold text-white">Neo PC</p>
+            </div>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+              isAdmin ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+            }`}>
+              <Shield className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-400">
+            <span className={`h-2 w-2 rounded-full ${isAdmin ? 'bg-success' : 'bg-warning'}`} />
+            {isAdmin ? 'Mode administrateur actif' : 'Droits standard'}
+          </div>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function MobileNav({ activeTab, onTabChange }: { activeTab: ActiveTab; onTabChange: (tab: ActiveTab) => void }) {
+  return (
+    <div className="border-b border-slate-200/70 bg-light-bg/[0.78] px-4 py-2 backdrop-blur-xl dark:border-white/10 dark:bg-dark-bg/[0.72] lg:hidden">
+      <div className="flex gap-2 overflow-x-auto">
+        {menuItems.map((item) => {
+          const Icon = item.icon
+          const isActive = activeTab === item.id
+          return (
+            <button
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition ${
+                isActive
+                  ? 'border-accent/30 bg-accent/15 text-ink dark:text-white'
+                  : 'border-slate-200 bg-white/70 text-slate-500 dark:border-white/10 dark:bg-white/[0.045] dark:text-slate-400'
+              }`}
+              type="button"
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {item.title}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function CelebrationCanvas({ active }: { active: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     if (!active || !canvasRef.current) return
     const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
     let animationFrameId: number
 
     canvas.width = window.innerWidth
     canvas.height = window.innerHeight
 
-    const colors = ['#6366f1', '#ec4899', '#10b981', '#3b82f6', '#f59e0b']
+    const colors = ['#32A7F3', '#22D3B6', '#B7F36B', '#FBBF24']
     const particles = Array.from({ length: 120 }).map(() => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height - canvas.height,
       r: Math.random() * 6 + 4,
-      d: Math.random() * canvas.height,
       color: colors[Math.floor(Math.random() * colors.length)],
       tilt: Math.random() * 10 - 5,
       tiltAngleIncremental: Math.random() * 0.07 + 0.02,
@@ -53,9 +251,7 @@ function CelebrationCanvas({ active }: { active: boolean }) {
         p.x += Math.sin(p.tiltAngle)
         p.tilt = Math.sin(p.tiltAngle - p.r / 2) * 15
 
-        if (p.y < canvas.height) {
-          finished = false
-        }
+        if (p.y < canvas.height) finished = false
 
         ctx.beginPath()
         ctx.lineWidth = p.r
@@ -65,9 +261,7 @@ function CelebrationCanvas({ active }: { active: boolean }) {
         ctx.stroke()
       })
 
-      if (!finished) {
-        animationFrameId = requestAnimationFrame(draw)
-      }
+      if (!finished) animationFrameId = requestAnimationFrame(draw)
     }
 
     draw()
@@ -86,12 +280,7 @@ function CelebrationCanvas({ active }: { active: boolean }) {
 
   if (!active) return null
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none z-[10000] w-full h-full"
-    />
-  )
+  return <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-[10000] h-full w-full" />
 }
 
 function App() {
@@ -110,41 +299,39 @@ function App() {
     closeOverlay
   } = useInstallation(handleClearCart)
 
-  const [activeTab, setActiveTab] = useState<'starter' | 'search' | 'updates' | 'installed' | 'diagnostic' | 'sources'>('starter')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('starter')
   const [isMinimized, setIsMinimized] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
 
-  // Side-panel auto-opening behavior when an installation batch launches
   useEffect(() => {
-    if (installing) {
-      setIsMinimized(false)
-    }
+    if (installing) setIsMinimized(false)
   }, [installing])
 
-  // Trigger custom confetti canvas on batch success
   useEffect(() => {
     if (batchStatus && batchStatus.is_finished && !batchStatus.error && batchStatus.total > 0) {
       setShowCelebration(true)
-      showToast("Félicitations ! Toutes les installations ont réussi !", "success")
+      showToast('Toutes les installations ont réussi.', 'success')
       const t = setTimeout(() => setShowCelebration(false), 6000)
       return () => clearTimeout(t)
-    } else if (batchStatus && batchStatus.is_finished && batchStatus.error) {
-      showToast("Installations terminées avec des avertissements.", "error")
+    }
+
+    if (batchStatus && batchStatus.is_finished && batchStatus.error) {
+      showToast('Installations terminées avec des avertissements.', 'error')
     }
   }, [batchStatus])
 
   const handleExport = async () => {
     if (cart.length === 0) {
-      showToast("Votre panier est vide. Ajoutez d'abord des logiciels à exporter.", "error")
+      showToast("Votre panier est vide. Ajoutez d'abord des logiciels à exporter.", 'error')
       return
     }
     try {
       const msg = await invoke<string>('export_configuration', { items: cart })
-      showToast(msg, "success")
+      showToast(msg, 'success')
     } catch (e) {
       console.error(e)
-      showToast(`Erreur d'exportation : ${e}`, "error")
+      showToast(`Erreur d'exportation : ${e}`, 'error')
     }
   }
 
@@ -153,17 +340,16 @@ function App() {
       const items = await invoke<any[]>('import_configuration')
       if (items && items.length > 0) {
         setCart(items)
-        showToast(`${items.length} logiciel(s) importé(s) avec succès.`, "success")
+        showToast(`${items.length} logiciel(s) importé(s) avec succès.`, 'success')
       }
     } catch (e) {
       console.error(e)
-      if (String(e) !== "Import annulé") {
-        showToast(`Erreur d'importation : ${e}`, "error")
+      if (String(e) !== 'Import annulé') {
+        showToast(`Erreur d'importation : ${e}`, 'error')
       }
     }
   }
 
-  // Keyboard shortcut listener for Command Palette (Ctrl+K or Cmd+K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
@@ -175,26 +361,27 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Execute Command Palette actions
   const handlePaletteAction = (actionKey: string) => {
     if (actionKey === 'diag') {
       setActiveTab('diagnostic')
-      showToast("Onglet diagnostic ouvert", "info")
+      showToast('Onglet diagnostic ouvert', 'info')
     } else if (actionKey === 'fix') {
       setActiveTab('diagnostic')
-      showToast("Lancement de la réparation de WinGet...", "info")
-      // We will trigger a reset event
-      window.dispatchEvent(new Event('trigger-winget-fix'))
+      showToast('Lancement de la réparation de WinGet...', 'info')
+      window.setTimeout(() => window.dispatchEvent(new Event('trigger-winget-fix')), 80)
     } else if (actionKey === 'export') {
       handleExport()
     } else if (actionKey === 'import') {
       handleImport()
     } else if (actionKey === 'clear') {
       handleClearCart()
-      showToast("Le panier a été vidé.", "info")
+      showToast('Le panier a été vidé.', 'info')
+    } else if (actionKey === 'toolkit') {
+      setActiveTab('toolkit')
+      showToast('Toolkit Windows ouvert', 'info')
     } else if (actionKey === 'theme') {
       toggleTheme()
-      showToast("Thème basculé", "success")
+      showToast('Thème basculé', 'success')
     }
   }
 
@@ -207,18 +394,20 @@ function App() {
       total: 1,
       current_name: name,
       message: `Mise à jour de ${name} en cours...`,
+      progress_percent: 0,
       is_finished: false,
       error: null
     })
 
     try {
-      const result = await invoke<string>('upgrade_software', { id, name })
+      const result = await invoke<string>('upgrade_software', { id, name, mode: getInstallMode() })
       console.info(`[App] Résultat mise à jour ${name} :`, result)
       setBatchStatus({
         current_index: 1,
         total: 1,
         current_name: name,
         message: result,
+        progress_percent: 100,
         is_finished: true,
         error: null
       })
@@ -229,7 +418,8 @@ function App() {
         current_index: 0,
         total: 1,
         current_name: name,
-        message: `Échec de la mise à jour`,
+        message: 'Échec de la mise à jour',
+        progress_percent: 100,
         is_finished: true,
         error: String(e)
       })
@@ -245,18 +435,20 @@ function App() {
       total: 1,
       current_name: name,
       message: `Désinstallation de ${name} en cours...`,
+      progress_percent: 0,
       is_finished: false,
       error: null
     })
 
     try {
-      const result = await invoke<string>('uninstall_software', { id, name })
+      const result = await invoke<string>('uninstall_software', { id, name, mode: getInstallMode() })
       console.info(`[App] Résultat désinstallation ${name} :`, result)
       setBatchStatus({
         current_index: 1,
         total: 1,
         current_name: name,
         message: result,
+        progress_percent: 100,
         is_finished: true,
         error: null
       })
@@ -267,7 +459,8 @@ function App() {
         current_index: 0,
         total: 1,
         current_name: name,
-        message: `Échec de la désinstallation`,
+        message: 'Échec de la désinstallation',
+        progress_percent: 100,
         is_finished: true,
         error: String(e)
       })
@@ -276,33 +469,27 @@ function App() {
 
   const handlePaletteAddToCart = (id: string, name: string) => {
     handleAddToCart({ id, name })
-    showToast(`${name} ajouté au panier !`, "success")
+    showToast(`${name} ajouté au panier.`, 'success')
   }
 
-  const menuItems = [
-    { id: 'starter', title: 'Starter Pack', icon: PackageOpen, color: 'text-primary' },
-    { id: 'search', title: 'Recherche WinGet', icon: Globe, color: 'text-accent' },
-    { id: 'updates', title: 'Mises à jour', icon: RefreshCw, color: 'text-primary' },
-    { id: 'installed', title: 'Mes Logiciels', icon: Monitor, color: 'text-accent' },
-    { id: 'diagnostic', title: 'System Doctor', icon: Activity, color: 'text-success' },
-    { id: 'sources', title: 'Paramètres', icon: Settings, color: 'text-gray-400' }
-  ]
-
-  const tabTitles = {
-    starter: 'Starter Pack',
-    search: 'Recherche WinGet',
-    updates: 'Centre de Mises à jour',
-    installed: 'Mes Logiciels',
-    diagnostic: 'System Doctor',
-    sources: 'Paramètres & Catalogue'
-  }
+  const progress = batchStatus
+    ? Math.round(
+        Math.min(
+          100,
+          Math.max(
+            0,
+            batchStatus.progress_percent ??
+              (batchStatus.current_index / Math.max(1, batchStatus.total)) * 100
+          )
+        )
+      )
+    : 0
 
   return (
-    <div className="flex h-screen overflow-hidden bg-light-bg dark:bg-[#070708] text-gray-900 dark:text-gray-50 transition-colors duration-300">
-      {/* Glow Particles Confetti Layer */}
+    <div className="app-bg relative flex h-screen overflow-hidden text-slate-950 transition-colors duration-300 dark:text-slate-100">
+      <div className="app-grid pointer-events-none fixed inset-0" />
       <CelebrationCanvas active={showCelebration} />
 
-      {/* Raycast Command Palette Modal */}
       <CommandPalette
         isOpen={isPaletteOpen}
         onClose={() => setIsPaletteOpen(false)}
@@ -310,110 +497,35 @@ function App() {
         onAddToCart={handlePaletteAddToCart}
       />
 
-      {/* Gradient Background Aura */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
-        <div className="absolute top-0 right-0 w-[40vw] h-[40vh] bg-gradient-radial from-primary/10 to-transparent blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vh] bg-gradient-radial from-accent/10 to-transparent blur-3xl" />
-      </div>
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onOpenCommand={() => setIsPaletteOpen(true)}
+        isAdmin={isAdmin}
+      />
 
-      {/* Sleek Vertical Left Sidebar (macOS/Arc style) */}
-      <aside className="w-64 flex flex-col bg-white/90 dark:bg-zinc-950/70 backdrop-blur-xl border-r border-gray-200/50 dark:border-zinc-900/50 p-4 justify-between select-none flex-shrink-0 z-20">
-        <div className="space-y-6">
-          {/* Logo / Branding */}
-          <div className="flex items-center gap-3 px-2">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg shadow-primary/20 flex-shrink-0">
-              <Package className="text-white w-5 h-5 animate-pulse" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-extrabold text-base text-gray-900 dark:text-white leading-tight">NeoGet</h2>
-              <span className="text-[9px] uppercase tracking-wider bg-accent/15 text-accent border border-accent/20 px-2.5 py-0.5 rounded-full font-extrabold block w-fit mt-1">
-                Ultimate v3.0
-              </span>
-            </div>
-          </div>
-
-          {/* Quick Search Shortcut */}
-          <button
-            onClick={() => setIsPaletteOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2.5 bg-gray-50 hover:bg-gray-100 dark:bg-zinc-900/40 dark:hover:bg-zinc-900 rounded-xl border border-gray-200/50 dark:border-zinc-850/50 text-xs font-semibold text-gray-400 dark:text-gray-500 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Search className="w-4 h-4" />
-              <span>Palette de commandes...</span>
-            </div>
-            <kbd className="px-1.5 py-0.5 bg-white dark:bg-zinc-800 border border-gray-250 dark:border-zinc-750/70 rounded shadow-xs text-[9px] uppercase font-bold tracking-wide">
-              Ctrl K
-            </kbd>
-          </button>
-
-          {/* Sidebar Menu items with sliding LayoutId spring pills */}
-          <nav className="flex flex-col gap-1">
-            {menuItems.map(item => {
-              const isActive = activeTab === item.id
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id as any)}
-                  className={`relative w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-bold text-sm transition-all duration-300 z-10 ${
-                    isActive
-                      ? 'text-primary dark:text-white'
-                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-50/50 dark:hover:bg-zinc-900/40'
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="active-nav-pill"
-                      className="absolute inset-0 bg-primary/10 dark:bg-primary/20 rounded-xl border-l-2 border-primary z-0"
-                      transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-                    />
-                  )}
-                  <Icon className={`w-4 h-4 relative z-10 ${isActive ? 'text-primary animate-pulse' : 'text-gray-400'}`} />
-                  <span className="relative z-10 truncate">{item.title}</span>
-                </button>
-              )
-            })}
-          </nav>
-        </div>
-
-        {/* Bottom system credentials Card */}
-        <div className="p-3.5 bg-gray-50/80 dark:bg-zinc-900/30 rounded-2xl border border-gray-200/50 dark:border-zinc-850/50">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-black uppercase flex-shrink-0">
-              PC
-            </div>
-            <div className="min-w-0">
-              <h4 className="font-extrabold text-xs text-gray-900 dark:text-white truncate">Neo PC</h4>
-              <p className="text-[9px] text-gray-450 font-bold truncate flex items-center gap-1 mt-0.5 uppercase tracking-wide">
-                <Shield className={`w-3.5 h-3.5 ${isAdmin ? 'text-success' : 'text-amber-500'}`} />
-                {isAdmin ? 'Mode Administrateur' : 'Droits Standard'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* Main View Container */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden z-10">
-        {/* Dynamic Glass Toolbar */}
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
           darkMode={darkMode}
           onToggleTheme={toggleTheme}
           onExport={handleExport}
           onImport={handleImport}
+          onOpenCommand={() => setIsPaletteOpen(true)}
           activeTitle={tabTitles[activeTab]}
+          activeDescription={tabDescriptions[activeTab]}
+          isAdmin={isAdmin}
         />
+        <MobileNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-        {/* View Main Content Area */}
-        <main className="flex-1 overflow-y-auto px-8 py-8">
+        <main className="flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 15 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.2 }}
-              className="max-w-7xl mx-auto h-full"
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.18 }}
+              className="mx-auto h-full max-w-[1500px]"
             >
               <ErrorBoundary>
                 {activeTab === 'starter' && (
@@ -439,32 +551,22 @@ function App() {
                   />
                 )}
                 {activeTab === 'updates' && (
-                  <UpgradesView
-                    loading={loading}
-                    onUpgrade={handleUpgradeSoftware}
-                  />
+                  <UpgradesView loading={loading} onUpgrade={handleUpgradeSoftware} />
                 )}
                 {activeTab === 'installed' && (
-                  <InstalledView
-                    onUninstall={handleUninstallSoftware}
-                  />
+                  <InstalledView onUninstall={handleUninstallSoftware} />
                 )}
-                {activeTab === 'diagnostic' && (
-                  <SystemDoctorView />
-                )}
-                {activeTab === 'sources' && (
-                  <SettingsView />
-                )}
+                {activeTab === 'toolkit' && <WindowsToolkitView isAdmin={isAdmin} />}
+                {activeTab === 'diagnostic' && <SystemDoctorView />}
+                {activeTab === 'sources' && <SettingsView />}
               </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </main>
       </div>
 
-      {/* Global Toast Container */}
       <ToastContainer />
 
-      {/* Cart Drawer */}
       <AnimatePresence>
         {cart.length > 0 && !installing && (
           <CartDrawer
@@ -476,129 +578,130 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* Floating Active Task queue pill (when minimized) */}
-      {installing && isMinimized && batchStatus && (
-        <motion.button
-          initial={{ scale: 0.8, opacity: 0, y: 50 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.8, opacity: 0, y: 50 }}
-          onClick={() => setIsMinimized(false)}
-          className="fixed bottom-6 right-6 z-[999] bg-gradient-to-r from-primary to-accent text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 font-bold border border-white/20 hover:scale-105 transition-all"
-        >
-          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-          <span>{batchStatus.current_name || 'Installation...'} ({Math.round((batchStatus.current_index / batchStatus.total) * 100)}%)</span>
-        </motion.button>
-      )}
+      <AnimatePresence>
+        {installing && isMinimized && batchStatus && (
+          <motion.button
+            initial={{ scale: 0.92, opacity: 0, y: 24 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.92, opacity: 0, y: 24 }}
+            onClick={() => setIsMinimized(false)}
+            className="fixed bottom-5 right-5 z-[999] flex items-center gap-3 rounded-lg border border-accent/25 bg-[#0E171D]/[0.92] px-4 py-3 text-sm font-bold text-white shadow-soft-dark backdrop-blur-xl transition hover:border-accent/40"
+            type="button"
+          >
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
+            <span className="max-w-[220px] truncate">{batchStatus.current_name || 'Installation...'}</span>
+            <span className="text-accent">{progress}%</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
-      {/* Background Task Queue Drawer Panel (Sidebar Drawer) */}
       <AnimatePresence>
         {installing && !isMinimized && batchStatus && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
-              animate={{ opacity: 0.4 }}
+              animate={{ opacity: 0.62 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMinimized(true)}
-              className="fixed inset-0 bg-black/60 z-[1000] backdrop-blur-xs"
+              className="fixed inset-0 z-[1000] bg-black backdrop-blur-sm"
             />
-            {/* Sidebar drawer body */}
-            <motion.div
+            <motion.aside
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-white dark:bg-[#0b0a0a] z-[1001] shadow-2xl border-l border-gray-200/50 dark:border-zinc-900/50 p-6 flex flex-col"
+              transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+              className="fixed bottom-0 right-0 top-0 z-[1001] flex w-full max-w-md flex-col border-l border-white/10 bg-[#091116]/[0.96] p-5 text-white shadow-soft-dark backdrop-blur-2xl"
             >
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-gray-200 dark:border-zinc-900 pb-4 mb-6">
+              <div className="mb-6 flex items-start justify-between gap-4 border-b border-white/10 pb-4">
                 <div>
-                  <h3 className="font-extrabold text-xl text-gray-900 dark:text-white leading-tight">Suivi d'installation</h3>
-                  <p className="text-xs text-gray-500 mt-0.5 font-bold uppercase tracking-wide">NeoGet Queue Manager</p>
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-accent">
+                    <Layers3 className="h-3.5 w-3.5" />
+                    Queue Manager
+                  </div>
+                  <h3 className="mt-2 font-heading text-2xl font-extrabold">Suivi d'installation</h3>
+                  <p className="mt-1 text-sm text-slate-400">Progression claire, erreurs visibles, aucun bruit inutile.</p>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setIsMinimized(true)}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-xl transition-colors text-gray-500"
-                    title="Minimiser en arrière-plan"
+                    className="icon-button border-white/10 bg-white/[0.055] text-slate-400 hover:bg-white/[0.09] hover:text-white"
+                    title="Minimiser"
+                    type="button"
                   >
-                    <Minimize2 className="w-5 h-5" />
+                    <Minimize2 className="h-4 w-4" />
                   </button>
                   {batchStatus.is_finished && (
                     <button
                       onClick={closeOverlay}
-                      className="p-2 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-xl transition-colors text-gray-500"
+                      className="icon-button border-white/10 bg-white/[0.055] text-slate-400 hover:bg-white/[0.09] hover:text-white"
                       title="Fermer"
+                      type="button"
                     >
-                      <X className="w-5 h-5" />
+                      <X className="h-4 w-4" />
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Progress Detail */}
-              <div className="flex-1 overflow-y-auto space-y-6 pr-2 scrollbar-thin">
-                <div className="flex items-center gap-4">
-                  {!batchStatus.is_finished ? (
-                    <div className="relative flex-shrink-0">
-                      <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                      <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-primary">
-                        {Math.round((batchStatus.current_index / batchStatus.total) * 100)}%
+              <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+                <div className="surface-soft border-white/10 bg-white/[0.045] p-4">
+                  <div className="flex items-center gap-4">
+                    {!batchStatus.is_finished ? (
+                      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+                        <span className="absolute inset-0 rounded-full border-4 border-white/10" />
+                        <span className="absolute inset-0 animate-spin rounded-full border-4 border-accent border-t-transparent" />
+                        <span className="text-xs font-extrabold text-accent">{progress}%</span>
                       </div>
+                    ) : (
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-success/20 bg-success/10 text-success">
+                        <CheckCircle2 className="h-7 w-7" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <h4 className="truncate text-base font-extrabold text-white">
+                        {batchStatus.current_name || 'Initialisation...'}
+                      </h4>
+                      <p className="mt-1 text-sm leading-5 text-slate-400">{batchStatus.message}</p>
                     </div>
-                  ) : (
-                    <div className="w-12 h-12 rounded-full bg-success/15 flex items-center justify-center flex-shrink-0 border border-success/20">
-                      <CheckCircle2 className="w-6 h-6 text-success animate-bounce" />
+                  </div>
+
+                  <div className="mt-5 space-y-2">
+                    <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                      <motion.div
+                        initial={{ width: '0%' }}
+                        animate={{ width: `${progress}%` }}
+                        className="h-full rounded-full bg-accent"
+                      />
                     </div>
-                  )}
-                  <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white text-base leading-tight">
-                      {batchStatus.current_name || 'Initialisation...'}
-                    </h4>
-                    <p className="text-xs text-gray-500 mt-1 leading-snug font-semibold">{batchStatus.message}</p>
+                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                      <span>Progression</span>
+                      <span>{batchStatus.current_index} / {batchStatus.total}</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                <div className="space-y-1.5">
-                  <div className="w-full h-2.5 bg-gray-100 dark:bg-zinc-900 rounded-full overflow-hidden border border-gray-200/50 dark:border-zinc-800/80">
-                    <motion.div
-                      initial={{ width: '0%' }}
-                      animate={{ width: `${Math.round((batchStatus.current_index / batchStatus.total) * 100)}%` }}
-                      className="h-full bg-gradient-to-r from-primary to-accent"
-                    />
-                  </div>
-                  <div className="flex justify-between text-[10px] text-gray-400 font-bold uppercase tracking-wide">
-                    <span>Progression globale</span>
-                    <span>{batchStatus.current_index} / {batchStatus.total}</span>
-                  </div>
-                </div>
-
-                {/* Error status card */}
                 {batchStatus.error && (
-                  <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs flex gap-2.5 items-start">
-                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="font-bold">Erreur signalée :</p>
-                      <p className="mt-1 leading-normal opacity-90">{batchStatus.error}</p>
+                  <div className="rounded-lg border border-error/25 bg-error/10 p-4 text-error">
+                    <div className="flex gap-3">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold">Erreur signalée</p>
+                        <p className="mt-1 text-sm leading-5 text-rose-200">{batchStatus.error}</p>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Close Drawer Button */}
               {batchStatus.is_finished && (
-                <button
-                  onClick={closeOverlay}
-                  className="w-full btn-primary py-3.5 rounded-xl font-bold mt-4"
-                >
+                <button onClick={closeOverlay} className="btn-accent mt-5 w-full py-3" type="button">
                   Fermer la file d'attente
                 </button>
               )}
-             </motion.div>
-           </>
-         )}
-       </AnimatePresence>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

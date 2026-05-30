@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Download, CheckCircle2, AlertCircle, Sparkles, ArrowRight } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckCircle2, Download, RefreshCw, Sparkles } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { UpgradeResult } from '../types'
 
@@ -50,7 +50,7 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
       setHasScanned(true)
     } catch (e) {
       console.error(e)
-      setError("Impossible de charger les mises à jour. Assurez-vous que WinGet fonctionne correctement.")
+      setError('Impossible de charger les mises à jour. Vérifiez que WinGet fonctionne correctement.')
     } finally {
       setScanning(false)
     }
@@ -93,60 +93,75 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
     if (upgrades.length === 0) return
     const confirmed = confirm(`Voulez-vous lancer la mise à jour de ${upgrades.length} logiciels ?`)
     if (!confirmed) return
-
-    // Mettre à jour séquentiellement
-    for (const app of upgrades) {
-      await handleUpgrade(app.id, app.name)
+    setScanning(true)
+    setError(null)
+    try {
+      const mode = localStorage.getItem('neoget-install-mode') === 'interactive' ? 'interactive' : 'silent'
+      const includeUnknown = localStorage.getItem('neoget-winget-include-unknown') !== 'false'
+      const force = localStorage.getItem('neoget-winget-force-upgrade') === 'true'
+      await invoke<string>('winget_upgrade_all', {
+        include_unknown: includeUnknown,
+        force,
+        mode
+      })
+      await scanUpgrades()
+    } catch (e) {
+      console.error(e)
+      setError(`Échec de la mise à jour globale: ${e}`)
+    } finally {
+      setScanning(false)
     }
   }
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  }
-
   return (
-    <div className="space-y-8">
-      {/* View Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-3xl font-bold font-heading text-gray-900 dark:text-white mb-2">
-            Centre de Mises à jour
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Gardez votre système et vos applications à jour de manière sécurisée avec WinGet
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={scanUpgrades}
-            disabled={scanning}
-            className="btn-primary flex items-center justify-center gap-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
-            {scanning ? 'Recherche...' : 'Rechercher les mises à jour'}
-          </button>
-          {upgrades.length > 0 && (
-            <button
-              onClick={handleUpgradeAll}
-              disabled={scanning || localLoading.size > 0}
-              className="btn-accent flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4" />
-              Tout mettre à jour ({upgrades.length})
+    <div className="space-y-5 pb-24">
+      <div className="surface-strong p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="page-title">Centre de mises à jour</h2>
+            <p className="page-copy mt-2">
+              Scannez les paquets obsolètes, priorisez les versions disponibles et gardez le poste propre.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={scanUpgrades} disabled={scanning} className="btn-secondary" type="button">
+              <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
+              {scanning ? 'Recherche...' : 'Rechercher'}
             </button>
-          )}
+            {upgrades.length > 0 && (
+              <button onClick={handleUpgradeAll} disabled={scanning || localLoading.size > 0} className="btn-accent" type="button">
+                <Download className="h-4 w-4" />
+                Tout mettre à jour ({upgrades.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+            <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{upgrades.length}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">mises à jour</p>
+          </div>
+          <div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
+            <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{localLoading.size}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">en cours</p>
+          </div>
+          <div className="rounded-lg border border-success/20 bg-success/10 p-3">
+            <p className="text-2xl font-extrabold text-emerald-700 dark:text-success">WinGet</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-emerald-700/80 dark:text-success/80">source</p>
+          </div>
         </div>
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-500/30 text-red-600 dark:text-red-400 flex items-center gap-3">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <p className="text-sm font-medium">{error}</p>
+        <div className="rounded-lg border border-error/25 bg-error/10 p-4 text-error">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-bold">{error}</p>
+          </div>
         </div>
       )}
 
-      {/* Main Area */}
       <AnimatePresence mode="wait">
         {scanning ? (
           <motion.div
@@ -154,90 +169,76 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center py-20 text-center space-y-4"
+            className="surface-soft flex min-h-[360px] flex-col items-center justify-center p-8 text-center"
           >
-            <div className="w-16 h-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
-            <p className="text-gray-600 dark:text-gray-400 font-medium">
-              Analyse des packages système en cours...
-            </p>
+            <div className="h-14 w-14 rounded-full border-4 border-accent/20 border-t-accent animate-spin" />
+            <h3 className="mt-5 font-heading text-lg font-extrabold text-slate-950 dark:text-white">Analyse en cours</h3>
+            <p className="mt-1 text-sm font-medium text-slate-500">Lecture des paquets installés et des versions disponibles.</p>
           </motion.div>
         ) : upgrades.length > 0 ? (
-          <div
-            key="upgrades-grid"
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          <motion.div
+            key="upgrades-list"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="surface-strong overflow-hidden"
           >
-            {upgrades.map((app, idx) => {
-              const isUpgrading = localLoading.has(app.id) || loading.has(app.id)
-              return (
-                <motion.div key={`${app.id}-${idx}`} variants={itemVariants}>
-                  <div className={`group card h-full flex flex-col hover:shadow-xl transition-all duration-300 ${isUpgrading ? 'border-primary ring-1 ring-primary/20' : ''}`}>
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-primary transition-colors">
-                          {app.name}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 font-mono">
-                            v{app.version}
-                          </span>
-                          <ArrowRight className="w-3 h-3 text-gray-400" />
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-success/15 text-success font-semibold font-mono">
-                            v{app.available}
-                          </span>
-                        </div>
-                      </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_160px_160px_150px] gap-4 border-b border-slate-200/70 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-500 dark:border-white/10 max-lg:hidden">
+              <span>Logiciel</span>
+              <span>Version actuelle</span>
+              <span>Disponible</span>
+              <span className="text-right">Action</span>
+            </div>
+            <div className="divide-y divide-slate-200/70 dark:divide-white/10">
+              {upgrades.map((app, idx) => {
+                const isUpgrading = localLoading.has(app.id) || loading.has(app.id)
+                return (
+                  <div key={`${app.id}-${idx}`} className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_160px_160px_150px] lg:items-center">
+                    <div className="min-w-0">
+                      <h3 className="truncate text-sm font-extrabold text-slate-950 dark:text-white">{app.name}</h3>
+                      <p className="mt-1 truncate font-mono text-xs font-semibold text-slate-500">{app.id}</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">Source : {app.source || 'WinGet'}</p>
                     </div>
-
-                    <div className="mb-6 pb-6 border-t border-gray-200 dark:border-gray-700 pt-4 flex-1">
-                      <code className="text-xs font-mono text-gray-500 dark:text-gray-500 break-all">
-                        {app.id}
-                      </code>
-                      <p className="text-xs text-gray-400 mt-2">
-                        Source : {app.source || 'WinGet'}
-                      </p>
+                    <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-500">
+                      <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-white/[0.055]">v{app.version}</span>
                     </div>
-
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                    <div className="flex items-center gap-2 font-mono text-xs font-bold text-success">
+                      <ArrowRight className="h-3.5 w-3.5 text-slate-500 max-lg:hidden" />
+                      <span className="rounded-md border border-success/20 bg-success/10 px-2 py-1">v{app.available}</span>
+                    </div>
+                    <button
                       onClick={() => handleUpgrade(app.id, app.name)}
                       disabled={isUpgrading}
-                      className="w-full btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-primary justify-center px-3 py-2 text-xs"
+                      type="button"
                     >
                       {isUpgrading ? (
-                        <>
-                          <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                          Mise à jour...
-                        </>
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                       ) : (
-                        <>
-                          <Download className="w-4 h-4" />
-                          Mettre à jour
-                        </>
+                        <Download className="h-3.5 w-3.5" />
                       )}
-                    </motion.button>
+                      {isUpgrading ? 'Mise à jour...' : 'Mettre à jour'}
+                    </button>
                   </div>
-                </motion.div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </motion.div>
         ) : hasScanned ? (
           <motion.div
             key="upgrades-clean"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center py-20 text-center space-y-4"
+            className="surface-soft flex min-h-[360px] flex-col items-center justify-center p-8 text-center"
           >
-            <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center">
-              <CheckCircle2 className="w-10 h-10 text-success" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-success/20 bg-success/10 text-success">
+              <CheckCircle2 className="h-8 w-8" />
             </div>
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Tout est à jour !</h3>
-              <p className="text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
-                Félicitations, aucun logiciel obsolète n'a été détecté sur votre ordinateur.
-              </p>
-            </div>
+            <h3 className="mt-5 font-heading text-lg font-extrabold text-slate-950 dark:text-white">Tout est à jour</h3>
+            <p className="mt-1 max-w-md text-sm leading-6 text-slate-500">
+              Aucun logiciel obsolète détecté. Votre environnement peut respirer.
+            </p>
           </motion.div>
         ) : (
           <motion.div
@@ -245,17 +246,15 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center py-20 text-center space-y-4"
+            className="surface-soft flex min-h-[360px] flex-col items-center justify-center p-8 text-center"
           >
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-primary" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+              <Sparkles className="h-8 w-8" />
             </div>
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Analyser votre PC</h3>
-              <p className="text-gray-600 dark:text-gray-400 max-w-sm mx-auto">
-                Lancez une recherche pour voir les logiciels installés pouvant être mis à jour.
-              </p>
-            </div>
+            <h3 className="mt-5 font-heading text-lg font-extrabold text-slate-950 dark:text-white">Prêt à scanner</h3>
+            <p className="mt-1 max-w-md text-sm leading-6 text-slate-500">
+              Lancez une recherche pour voir les paquets qui peuvent être mis à jour.
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
