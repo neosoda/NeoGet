@@ -820,6 +820,107 @@ pub async fn install_software_batch(
 }
 
 #[tauri::command]
+pub async fn upgrade_software_batch(
+    app: AppHandle,
+    items: Vec<BatchItem>,
+    mode: Option<String>,
+) -> Result<String, String> {
+    if items.is_empty() {
+        warn!("Batch de mise à jour annulé: aucun élément fourni.");
+        return Err("Aucun logiciel sélectionné pour la mise à jour.".to_string());
+    }
+
+    let guard = InstallingGuard::acquire()?;
+    info!(
+        "Lancement d'une mise à jour groupée (batch) pour {} logiciel(s)",
+        items.len()
+    );
+
+    tauri::async_runtime::spawn(async move {
+        let _guard = guard;
+        let total = items.len();
+        let mut success_count = 0usize;
+        let mut failed_names: Vec<String> = Vec::new();
+
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        for (index, item) in items.iter().enumerate() {
+            let current_index = index + 1;
+            info!(
+                "Traitement mise à jour batch {}/{} : {}",
+                current_index, total, item.name
+            );
+
+            let payload = ProgressPayload {
+                current_index,
+                total,
+                current_name: item.name.clone(),
+                message: format!(
+                    "Mise à jour de {} ({}/{})",
+                    item.name, current_index, total
+                ),
+                progress_percent: Some((index as f32 / total.max(1) as f32) * 100.0),
+                is_finished: false,
+                error: None,
+            };
+
+            let _ = app.emit("installation-progress", &payload);
+
+            match upgrade_software(app.clone(), item.id.clone(), item.name.clone(), mode.clone()).await {
+                Ok(_) => {
+                    success_count += 1;
+                    info!("Succès mise à jour batch pour {}", item.name);
+                    let _ = app.emit("software-upgraded", serde_json::json!({ "id": item.id }));
+                    emit_progress(
+                        &ProgressContext {
+                            app: app.clone(),
+                            total,
+                            current_index,
+                            current_name: item.name.clone(),
+                            action_label: "Mise à jour".to_string(),
+                        },
+                        100.0,
+                        format!("{} mis à jour ({}/{})", item.name, current_index, total),
+                        None,
+                    );
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                Err(e) => {
+                    failed_names.push(item.name.clone());
+                    error!("Erreur lors de la mise à jour batch de {} : {}", item.name, e);
+
+                    let error_payload = ProgressPayload {
+                        current_index,
+                        total,
+                        current_name: item.name.clone(),
+                        message: format!("Échec mise à jour de {}", item.name),
+                        progress_percent: Some(
+                            (current_index as f32 / total.max(1) as f32) * 100.0,
+                        ),
+                        is_finished: false,
+                        error: Some(e),
+                    };
+
+                    let _ = app.emit("installation-progress", &error_payload);
+                    tokio::time::sleep(Duration::from_secs(2)).await;
+                }
+            }
+        }
+
+        let failure_count = failed_names.len();
+        info!(
+            "Fin du batch mise à jour: {} succès, {} échec(s)",
+            success_count, failure_count
+        );
+
+        let final_payload = build_batch_final_payload(total, success_count, &failed_names);
+        let _ = app.emit("installation-progress", &final_payload);
+    });
+
+    Ok("Mise à jour groupée lancée en arrière-plan".to_string())
+}
+
+#[tauri::command]
 pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     let query = query.trim().to_string();
     if query.len() < 2 {
@@ -876,7 +977,7 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     let source_idx = header.find("source").unwrap_or(80);
 
     for line in lines.iter().skip(h_idx + 2) {
-        if line.trim().is_empty() || line.starts_with('-') {
+        if line.trim().is_empty() || line.starts_with('-') || is_winget_summary_line(line) {
             continue;
         }
 
@@ -903,7 +1004,7 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
         let version = safe_slice(version_idx, source_idx);
         let source = safe_slice(source_idx, len);
 
-        if !id.is_empty() && !id.contains("...") {
+        if is_valid_winget_package_id(&id) {
             results.push(WinGetResult {
                 name,
                 id,
@@ -1027,6 +1128,20 @@ pub async fn is_admin() -> Result<bool, String> {
     }
 }
 
+#[tauri::command]
+pub async fn relaunch_as_admin() -> Result<String, String> {
+    info!("Relancement de NeoGet avec privilèges administrateur (UAC)...");
+    let exe = std::env::current_exe()
+        .map_err(|e| format!("Impossible de déterminer le chemin de l'exécutable : {}", e))?;
+    let script = format!(
+        "Start-Process -FilePath '{}' -Verb RunAs",
+        escape_powershell_single_quoted(&exe.to_string_lossy())
+    );
+    let mut cmd = powershell_command(&script);
+    let _ = cmd.spawn();
+    std::process::exit(0);
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UpgradeResult {
     pub name: String,
@@ -1072,16 +1187,64 @@ fn find_col_pos(header: &str, candidates: &[&str]) -> Option<usize> {
     None
 }
 
+fn is_winget_summary_line(line: &str) -> bool {
+    let l = line.to_lowercase();
+    l.contains("mises à niveau")
+        || l.contains("mises a niveau")
+        || l.contains("upgrades available")
+        || l.contains("ont des épingles")
+        || l.contains("ont des epingles")
+        || l.contains("have pins")
+        || l.contains("winget pin")
+        || l.contains("include-pinned")
+        || l.contains("aucun paquet")
+        || l.contains("no installed package")
+        || l.contains("no package found")
+        || l.contains("champs masqués")
+        || l.contains("champs masques")
+        || l.contains("hidden fields")
+        || l.contains("utilisez la commande")
+        || l.contains("use the command")
+        || l.contains("pour afficher")
+        || l.contains("plus de résultats")
+        || l.contains("plus de resultats")
+}
+
+fn is_valid_winget_package_id(id: &str) -> bool {
+    let trimmed = id.trim();
+    if trimmed.is_empty() || trimmed.len() < 2 {
+        return false;
+    }
+    if trimmed.contains(' ') || trimmed.contains('\t') || trimmed.contains("...") {
+        return false;
+    }
+    if trimmed.starts_with('(') || trimmed.starts_with(')') || trimmed.ends_with('.') {
+        return false;
+    }
+    let l = trimmed.to_lowercase();
+    if l.contains("disponible")
+        || l.contains("available")
+        || l.contains("épingle")
+        || l.contains("pinned")
+    {
+        return false;
+    }
+    true
+}
+
 #[tauri::command]
-pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
+pub async fn check_upgrades(include_unknown: Option<bool>) -> Result<Vec<UpgradeResult>, String> {
     info!("Recherche des mises à jour disponibles via WinGet...");
     let mut cmd = TokioCommand::new("winget");
     cmd.args([
         "upgrade",
         "--accept-source-agreements",
-        "--include-unknown",
         "--disable-interactivity",
     ]);
+
+    if include_unknown.unwrap_or(false) {
+        cmd.arg("--include-unknown");
+    }
 
     let output = run_command_with_timeout(
         &mut cmd,
@@ -1145,7 +1308,11 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
     );
 
     for line in lines.iter().skip(h_idx + 2) {
-        if line.trim().is_empty() || line.starts_with('-') || line.starts_with('\u{2500}') {
+        if line.trim().is_empty()
+            || line.starts_with('-')
+            || line.starts_with('\u{2500}')
+            || is_winget_summary_line(line)
+        {
             continue;
         }
 
@@ -1176,7 +1343,7 @@ pub async fn check_upgrades() -> Result<Vec<UpgradeResult>, String> {
         let available = safe_slice(available_idx, source_idx);
         let source = safe_slice(source_idx, len);
 
-        if !id.trim().is_empty() && !id.contains("...") {
+        if is_valid_winget_package_id(&id) {
             results.push(UpgradeResult {
                 name,
                 id,
@@ -1230,10 +1397,26 @@ pub async fn upgrade_software(
         return Ok(format!("{} a été mis à jour avec succès.", name));
     }
 
-    if privilege_error_output(&normalized_output) {
-        error!("Erreur de privilèges lors de la mise à jour de {}", name);
+    let code = output.status.code().unwrap_or(-1);
+
+    if code == -1978335189
+        || code == (0x8A15002Bu32 as i32)
+        || privilege_error_output(&normalized_output)
+    {
+        error!("Erreur de privilèges ou application fermée requise pour {}", name);
         return Err(format!(
-            "Erreur de privilèges : relancez NeoGet en tant qu'administrateur pour mettre à jour {}.",
+            "{} : fermez le logiciel s'il est ouvert et relancez NeoGet en tant qu'administrateur.",
+            name
+        ));
+    }
+
+    if normalized_output.contains("emplacement d'installation")
+        || normalized_output.contains("location is required")
+        || normalized_output.contains("installation location")
+    {
+        error!("Emplacement d'installation requis pour {}", name);
+        return Err(format!(
+            "{} nécessite la spécification manuelle d'un emplacement d'installation par l'éditeur.",
             name
         ));
     }
@@ -1319,7 +1502,11 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     );
 
     for line in lines.iter().skip(h_idx + 2) {
-        if line.trim().is_empty() || line.starts_with('-') || line.starts_with('\u{2500}') {
+        if line.trim().is_empty()
+            || line.starts_with('-')
+            || line.starts_with('\u{2500}')
+            || is_winget_summary_line(line)
+        {
             continue;
         }
 
@@ -1350,7 +1537,7 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
         let available = safe_slice(available_idx, source_idx);
         let source = safe_slice(source_idx, len);
 
-        if !id.trim().is_empty() && !id.contains("...") {
+        if is_valid_winget_package_id(&id) {
             results.push(InstalledResult {
                 name,
                 id,
@@ -1686,6 +1873,10 @@ pub async fn winget_upgrade_all(
     mode: Option<String>,
 ) -> Result<String, String> {
     info!("Mise à jour globale WinGet démarrée...");
+
+    // Fetch available upgrades first to allow sequential fallback if global command fails
+    let upgrades = check_upgrades(Some(include_unknown)).await.unwrap_or_default();
+
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["upgrade", "--all"]);
     for arg in build_winget_runtime_args(mode.as_deref()) {
@@ -1703,25 +1894,90 @@ pub async fn winget_upgrade_all(
         WINGET_INSTALL_TIMEOUT,
         "la mise à jour globale WinGet",
         Some(ProgressContext {
-            app,
-            total: 1,
+            app: app.clone(),
+            total: if upgrades.is_empty() { 1 } else { upgrades.len() },
             current_index: 1,
             current_name: "Tous les paquets".to_string(),
             action_label: "Mise à jour globale".to_string(),
         }),
     )
-    .await?;
+    .await;
 
-    let stdout = decode_command_output(&output.stdout);
-    let stderr = decode_command_output(&output.stderr);
-    if output.status.success() {
-        Ok("Mise à jour globale terminée.".to_string())
+    if let Ok(ref out) = output {
+        if out.status.success() {
+            return Ok("Mise à jour globale terminée avec succès.".to_string());
+        }
+    }
+
+    // Fallback if 'winget upgrade --all' failed: Upgrade each package individually
+    if upgrades.is_empty() {
+        let err_msg = match output {
+            Ok(out) => {
+                let stdout = decode_command_output(&out.stdout);
+                let stderr = decode_command_output(&out.stderr);
+                format!(
+                    "Échec de la mise à jour globale (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
+                    out.status.code().unwrap_or(-1),
+                    stdout,
+                    stderr
+                )
+            }
+            Err(e) => format!("Échec de la mise à jour globale : {}", e),
+        };
+        return Err(err_msg);
+    }
+
+    info!(
+        "[winget_upgrade_all] 'winget upgrade --all' a échoué. Bascule automatique sur la mise à jour séquentielle de {} paquet(s)...",
+        upgrades.len()
+    );
+
+    let mut succeeded = Vec::new();
+    let mut failed = Vec::new();
+
+    for (idx, item) in upgrades.iter().enumerate() {
+        info!(
+            "[winget_upgrade_all] [{}/{}] Upgrade séquentiel : {} ({})",
+            idx + 1,
+            upgrades.len(),
+            item.name,
+            item.id
+        );
+
+        match upgrade_software(app.clone(), item.id.clone(), item.name.clone(), mode.clone()).await {
+            Ok(_) => {
+                succeeded.push(item.name.clone());
+            }
+            Err(err) => {
+                let reason = if err.contains("emplacement d'installation") {
+                    format!("{} (emplacement requis)", item.name)
+                } else {
+                    format!("{} (échec)", item.name)
+                };
+                failed.push(reason);
+            }
+        }
+    }
+
+    if !succeeded.is_empty() {
+        if failed.is_empty() {
+            Ok(format!(
+                "Mise à jour globale terminée avec succès ({} paquet(s) mis à jour).",
+                succeeded.len()
+            ))
+        } else {
+            Ok(format!(
+                "Mise à jour effectuée pour {}/{} paquet(s) ({}) . Paquet(s) ignoré(s) : {}.",
+                succeeded.len(),
+                upgrades.len(),
+                succeeded.join(", "),
+                failed.join(", ")
+            ))
+        }
     } else {
         Err(format!(
-            "Échec de la mise à jour globale (Code: {}).\nSTDOUT: {}\nSTDERR: {}",
-            output.status.code().unwrap_or(-1),
-            stdout,
-            stderr
+            "Échec de la mise à jour globale. Les paquets suivants requièrent une intervention : {}.",
+            failed.join(", ")
         ))
     }
 }
@@ -2734,7 +2990,7 @@ mod tests {
         }
 
         println!("=== DIAGNOSTIC: check_upgrades ===");
-        match check_upgrades().await {
+        match check_upgrades(None).await {
             Ok(ups) => {
                 println!("SUCCESS: Found {} upgrades", ups.len());
                 for up in ups.iter().take(5) {

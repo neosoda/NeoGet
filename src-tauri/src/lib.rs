@@ -31,6 +31,8 @@ pub fn run() {
             commands::is_admin,
             commands::search_winget,
             commands::install_software_batch,
+            commands::upgrade_software_batch,
+            commands::relaunch_as_admin,
             commands::check_upgrades,
             commands::upgrade_software,
             commands::get_installed_software,

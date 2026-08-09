@@ -1,6 +1,6 @@
 {
   "productName": "NeoGet",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "identifier": "fr.neoget.installer",
   "build": {
     "beforeDevCommand": "",
@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' asset: tauri: https://asset.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' asset: data: blob:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost"
+      "csp": "default-src 'self' asset: tauri: https://asset.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' asset: data: blob: https:; connect-src 'self' ipc: http://ipc.localhost https://ipc.localhost https:"
     }
   },
   "bundle": {

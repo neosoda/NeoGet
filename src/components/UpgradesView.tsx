@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertCircle, ArrowRight, CheckCircle2, Download, RefreshCw, Sparkles } from 'lucide-react'
+import { AlertCircle, ArrowRight, CheckCircle2, Download, RefreshCw, ShieldAlert, Sparkles } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { UpgradeResult } from '../types'
+import { useSystemStatus } from '../hooks/useSystemStatus'
 
 interface UpgradesViewProps {
   loading: Set<string>
@@ -26,21 +27,32 @@ function normalizeUpgradeResult(app: Partial<UpgradeResult> | null | undefined):
   }
 }
 
+const formatVersion = (ver?: string) => {
+  if (!ver || ver === 'Unknown' || ver === 'Inconnue' || ver === 'unknown') {
+    return 'Inconnue'
+  }
+  return ver.startsWith('v') || ver.startsWith('V') ? ver : `v${ver}`
+}
+
 export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) {
+  const { isAdmin } = useSystemStatus()
   const [upgrades, setUpgrades] = useState<UpgradeResult[]>([])
   const [scanning, setScanning] = useState(false)
   const [hasScanned, setHasScanned] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [localLoading, setLocalLoading] = useState<Set<string>>(new Set())
+  const [upgradingAll, setUpgradingAll] = useState(false)
+  const [recentlyUpgraded, setRecentlyUpgraded] = useState<Set<string>>(new Set())
 
   const scanUpgrades = async () => {
     setScanning(true)
     setError(null)
     try {
-      const results = await invoke<UpgradeResult[]>('check_upgrades')
+      const includeUnknown = localStorage.getItem('neoget-winget-include-unknown') === 'true'
+      const results = await invoke<UpgradeResult[]>('check_upgrades', { includeUnknown })
       const normalizedResults = results
         .map(normalizeUpgradeResult)
-        .filter((app): app is UpgradeResult => app !== null)
+        .filter((app): app is UpgradeResult => app !== null && !recentlyUpgraded.has(app.id))
 
       console.info(
         `[UpgradesView] Successfully fetched ${results.length} upgrades; ${normalizedResults.length} displayable upgrades.`,
@@ -62,6 +74,7 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
     const handleUpgradedEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail
       if (detail && detail.id) {
+        setRecentlyUpgraded(prev => new Set(prev).add(detail.id))
         setUpgrades(prev => prev.filter(item => item.id !== detail.id))
       }
     }
@@ -90,31 +103,59 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
   }
 
   const handleUpgradeAll = async () => {
-    if (upgrades.length === 0) return
+    if (upgrades.length === 0 || upgradingAll) return
     const confirmed = confirm(`Voulez-vous lancer la mise à jour de ${upgrades.length} logiciels ?`)
     if (!confirmed) return
-    setScanning(true)
+
+    setUpgradingAll(true)
     setError(null)
     try {
       const mode = localStorage.getItem('neoget-install-mode') === 'interactive' ? 'interactive' : 'silent'
-      const includeUnknown = localStorage.getItem('neoget-winget-include-unknown') !== 'false'
-      const force = localStorage.getItem('neoget-winget-force-upgrade') === 'true'
-      await invoke<string>('winget_upgrade_all', {
-        include_unknown: includeUnknown,
-        force,
-        mode
-      })
-      await scanUpgrades()
+      const items = upgrades.map(u => ({ id: u.id, name: u.name }))
+      const result = await invoke<string>('upgrade_software_batch', { items, mode })
+      console.info('[UpgradesView] Batch de mise à jour lancé :', result)
     } catch (e) {
-      console.error(e)
-      setError(`Échec de la mise à jour globale: ${e}`)
+      console.error('[UpgradesView] Échec du batch :', e)
+      setError(`Impossible de démarrer la mise à jour groupée : ${e}`)
     } finally {
-      setScanning(false)
+      setUpgradingAll(false)
+    }
+  }
+
+  const handleRelaunchAdmin = async () => {
+    try {
+      await invoke('relaunch_as_admin')
+    } catch (e) {
+      console.error('Erreur relancement admin:', e)
     }
   }
 
   return (
     <div className="space-y-5 pb-24">
+      {!isAdmin && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-amber-600 dark:text-amber-400">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <ShieldAlert className="h-5 w-5 shrink-0 text-amber-500" />
+              <div>
+                <p className="text-sm font-bold">Privilèges Administrateur recommandés</p>
+                <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                  Certains logiciels (ex: MEGAsync, Battle.net) exigent les droits administrateur pour être mis à jour.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleRelaunchAdmin}
+              className="btn-secondary shrink-0 border-amber-500/40 text-amber-600 hover:bg-amber-500/20 dark:text-amber-300"
+              type="button"
+            >
+              <ShieldAlert className="h-4 w-4" />
+              Relancer en Administrateur
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="surface-strong p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -124,14 +165,14 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={scanUpgrades} disabled={scanning} className="btn-secondary" type="button">
+            <button onClick={scanUpgrades} disabled={scanning || upgradingAll} className="btn-secondary" type="button">
               <RefreshCw className={`h-4 w-4 ${scanning ? 'animate-spin' : ''}`} />
               {scanning ? 'Recherche...' : 'Rechercher'}
             </button>
             {upgrades.length > 0 && (
-              <button onClick={handleUpgradeAll} disabled={scanning || localLoading.size > 0} className="btn-accent" type="button">
+              <button onClick={handleUpgradeAll} disabled={scanning || upgradingAll || localLoading.size > 0} className="btn-accent" type="button">
                 <Download className="h-4 w-4" />
-                Tout mettre à jour ({upgrades.length})
+                {upgradingAll ? 'Mise à jour...' : `Tout mettre à jour (${upgrades.length})`}
               </button>
             )}
           </div>
@@ -200,11 +241,11 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
                       <p className="mt-1 text-xs font-medium text-slate-500">Source : {app.source || 'WinGet'}</p>
                     </div>
                     <div className="flex items-center gap-2 font-mono text-xs font-bold text-slate-500">
-                      <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-white/[0.055]">v{app.version}</span>
+                      <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-white/[0.055]">{formatVersion(app.version)}</span>
                     </div>
                     <div className="flex items-center gap-2 font-mono text-xs font-bold text-success">
                       <ArrowRight className="h-3.5 w-3.5 text-slate-500 max-lg:hidden" />
-                      <span className="rounded-md border border-success/20 bg-success/10 px-2 py-1">v{app.available}</span>
+                      <span className="rounded-md border border-success/20 bg-success/10 px-2 py-1">{formatVersion(app.available)}</span>
                     </div>
                     <button
                       onClick={() => handleUpgrade(app.id, app.name)}

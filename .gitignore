@@ -41,3 +41,4 @@ Thumbs.db
 # Keep releases/
 !releases/
 releases/*.exe.backup
+/NeoGet.exe

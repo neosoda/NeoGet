@@ -1,7 +1,7 @@
 {
   "name": "neoget",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,7 @@
     "tauri:dev": "tauri dev",
     "tauri:nowatch": "tauri dev --no-watch",
     "launch": "npm run build && tauri dev --no-watch",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build && node -e \"try { require('child_process').execSync('taskkill /F /IM NeoGet.exe', {stdio:'ignore'}); } catch(e){} require('fs').copyFileSync('C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe', './NeoGet.exe')\""
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
