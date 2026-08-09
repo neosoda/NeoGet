@@ -395,6 +395,36 @@ export default function SettingsView() {
               )}
             </div>
           </div>
+
+          <div className="surface-strong p-5">
+            <div className="flex items-center gap-3 border-b border-slate-200/70 pb-4 dark:border-white/10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-accent/20 bg-accent/10 text-accent">
+                <Code2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">À propos</h3>
+                <p className="text-xs font-semibold text-slate-500">NeoGet v2.2.0</p>
+              </div>
+            </div>
+            <div className="mt-4 space-y-2 text-xs">
+              <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="font-bold text-slate-500">Application</span>
+                <span className="font-extrabold text-slate-950 dark:text-white">NeoGet Desktop</span>
+              </div>
+              <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="font-bold text-slate-500">Version</span>
+                <span className="font-extrabold text-accent font-mono">2.2.0</span>
+              </div>
+              <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="font-bold text-slate-500">Moteur</span>
+                <span className="font-extrabold text-slate-950 dark:text-white">Tauri 2 + React 19</span>
+              </div>
+              <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
+                <span className="font-bold text-slate-500">Licence</span>
+                <span className="font-extrabold text-success">MIT</span>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </div>

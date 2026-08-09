@@ -1,6 +1,6 @@
 {
   "productName": "NeoGet",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "identifier": "fr.neoget.installer",
   "build": {
     "beforeDevCommand": "",
@@ -27,7 +27,15 @@
     }
   },
   "bundle": {
-    "active": false,
-    "targets": []
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both"
+      }
+    }
   }
 }

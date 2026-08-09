@@ -4,6 +4,14 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] — 2026-08-09
+
+### ✨ Nouveautés
+- **Installateur Windows Officiel NSIS** : Génération automatique de l'installateur autonome `NeoGet-Setup-2.2.0-x64.exe` avec intégration dans le menu Démarrer Windows, raccourcis et désinstallateur propre.
+- **Pipeline de Release One-Click (`build-release.ps1`)** : Script PowerShell fail-fast automatisant les vérifications, tests, builds, génération d'installateur et hachage SHA-256 (`SHA256SUMS.txt`).
+- **Gestion des Logs & Rotation** : Migration du dossier de logs vers `%LOCALAPPDATA%\NeoGet\logs\NeoGet.log` avec rotation automatique (> 5 Mo -> `.1`).
+- **Écran À Propos** : Section dédiée dans l'interface affichant dynamiquement la version 2.2.0, l'éditeur et la licence MIT.
+
 ---
 
 ## [2.1.0] — 2026-05-30

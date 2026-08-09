@@ -1,6 +1,6 @@
 [package]
 name = "neoget"
-version = "2.1.0"
+version = "2.2.0"
 description = "Installateur de logiciels moderne pour Windows"
 authors = ["NeoGet Team"]
 edition = "2021"

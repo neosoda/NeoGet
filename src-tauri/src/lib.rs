@@ -4,10 +4,25 @@ pub use commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Déterminer le chemin du dossier des logs (à côté de l'exécutable)
-    let mut log_path = std::env::current_exe().unwrap_or_default();
-    log_path.pop(); // Retire le nom de l'exécutable
-    log_path.push("logs"); // Ajoute le dossier 'logs'
+    // Déterminer le chemin du dossier des logs (%LOCALAPPDATA%\NeoGet\logs)
+    let log_path = if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        std::path::PathBuf::from(local_app_data).join("NeoGet").join("logs")
+    } else {
+        let mut p = std::env::current_exe().unwrap_or_default();
+        p.pop();
+        p.join("logs")
+    };
+
+    // Rotation simple : si NeoGet.log > 5 Mo, archiver en NeoGet.log.1
+    let _ = std::fs::create_dir_all(&log_path);
+    let active_log = log_path.join("NeoGet.log");
+    if let Ok(metadata) = std::fs::metadata(&active_log) {
+        if metadata.len() > 5 * 1024 * 1024 {
+            let backup_log = log_path.join("NeoGet.log.1");
+            let _ = std::fs::remove_file(&backup_log);
+            let _ = std::fs::rename(&active_log, &backup_log);
+        }
+    }
 
     tauri::Builder::default()
         .plugin(
