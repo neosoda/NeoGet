@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Activity, CheckCircle2, Cpu, HardDrive, RefreshCw, Shield, Wrench } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
@@ -62,10 +62,12 @@ function MetricRing({
   )
 }
 
-export default function SystemDoctorView() {
+export default function SystemDoctorView({ fixRequest = 0, onFixRequestHandled }: { fixRequest?: number; onFixRequestHandled?: () => void }) {
   const [diag, setDiag] = useState<SystemDiagnostic | null>(null)
   const [loading, setLoading] = useState(false)
   const [fixing, setFixing] = useState(false)
+  const fixingRef = useRef(false)
+  const handledRequest = useRef(0)
 
   const runDiagnostic = useCallback(async () => {
     setLoading(true)
@@ -82,6 +84,8 @@ export default function SystemDoctorView() {
   }, [])
 
   const handleFixWinGet = useCallback(async () => {
+    if (fixingRef.current) return
+    fixingRef.current = true
     setFixing(true)
     try {
       const msg = await invoke<string>('reset_winget_sources')
@@ -91,6 +95,7 @@ export default function SystemDoctorView() {
       console.error(e)
       showToast(`Échec de la réparation : ${e}`, 'error')
     } finally {
+      fixingRef.current = false
       setFixing(false)
     }
   }, [runDiagnostic])
@@ -100,9 +105,12 @@ export default function SystemDoctorView() {
   }, [runDiagnostic])
 
   useEffect(() => {
-    window.addEventListener('trigger-winget-fix', handleFixWinGet)
-    return () => window.removeEventListener('trigger-winget-fix', handleFixWinGet)
-  }, [handleFixWinGet])
+    if (fixRequest > handledRequest.current) {
+      handledRequest.current = fixRequest
+      onFixRequestHandled?.()
+      void handleFixWinGet()
+    }
+  }, [fixRequest, handleFixWinGet, onFixRequestHandled])
 
   const metrics = useMemo(() => {
     if (!diag) return { ramPercent: 0, diskPercent: 0 }

@@ -1,10 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Code2, Database, Folder, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Wrench } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
-import { WinGetSource } from '../types'
+import { CartItem, UpgradeResult, WinGetSource } from '../types'
 import { showToast } from './ToastContainer'
 
-export default function SettingsView() {
+export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { onUpgradeBatch: (items: CartItem[], force: boolean) => Promise<unknown>; hasActiveOperations: boolean }) {
   const [sources, setSources] = useState<WinGetSource[]>([])
   const [loadingSources, setLoadingSources] = useState(false)
   const [installPath, setInstallPath] = useState('C:\\Program Files')
@@ -12,6 +12,22 @@ export default function SettingsView() {
   const [customCatalogUrl, setCustomCatalogUrl] = useState('')
   const [includeUnknown, setIncludeUnknown] = useState(true)
   const [forceUpgrade, setForceUpgrade] = useState(false)
+  const [busyAction, setBusyAction] = useState<string | null>(null)
+  const busyRef = useRef(false)
+
+  const runMutation = async (label: string, action: () => Promise<void>) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusyAction(label)
+    try {
+      await action()
+    } catch (error) {
+      showToast(`${label} a échoué : ${error}`, 'error')
+    } finally {
+      busyRef.current = false
+      setBusyAction(null)
+    }
+  }
 
   const fetchSources = async () => {
     setLoadingSources(true)
@@ -27,14 +43,28 @@ export default function SettingsView() {
   }
 
   const runMaintenanceProfile = async (profile: 'fast-upgrade' | 'full-maintenance' | 'repair-sources') => {
+    let sourcesUpdated = false
     try {
-      const mode = installMode
-      await invoke('run_winget_maintenance_profile', { profile, mode })
-      showToast('Maintenance WinGet terminée.', 'success')
+      if (profile === 'repair-sources') {
+        await invoke('run_winget_maintenance_profile', { profile })
+        showToast('Sources WinGet réparées.', 'success')
+      } else {
+        await invoke('update_winget_sources')
+        sourcesUpdated = true
+        const available = await invoke<UpgradeResult[]>('check_upgrades', { includeUnknown: true })
+        const items = available.map(item => ({ id: item.id, name: item.name }))
+        if (items.length > 0) {
+          await onUpgradeBatch(items, profile === 'full-maintenance')
+          showToast(`${items.length} mise(s) à jour ajoutée(s) à la file.`, 'info')
+        } else {
+          showToast('Tous les logiciels sont déjà à jour.', 'success')
+        }
+      }
       await fetchSources()
     } catch (e) {
       console.error(e)
-      showToast(`Maintenance échouée : ${e}`, 'error')
+      showToast(`${sourcesUpdated ? 'Sources mises à jour, mais la suite a échoué' : 'Maintenance échouée'} : ${e}`, 'error')
+      if (sourcesUpdated) await fetchSources()
     }
   }
 
@@ -75,9 +105,9 @@ export default function SettingsView() {
 
   const restoreDefaultSources = async () => {
     try {
-      const msg = await invoke<string>('reset_winget_sources')
-      showToast(msg, 'success')
-      await updateSources()
+      await invoke('run_winget_maintenance_profile', { profile: 'repair-sources' })
+      showToast('Sources WinGet restaurées et mises à jour.', 'success')
+      await fetchSources()
     } catch (e) {
       console.error(e)
       showToast(`Échec restauration sources : ${e}`, 'error')
@@ -316,31 +346,33 @@ export default function SettingsView() {
               </div>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" className="btn-secondary" onClick={updateSources}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Mise à jour des sources', updateSources)}>
                 winget source update
               </button>
-              <button type="button" className="btn-secondary" onClick={resetSources}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Réinitialisation des sources', resetSources)}>
                 winget source reset --force
               </button>
-              <button type="button" className="btn-accent" onClick={() => runMaintenanceProfile('fast-upgrade')}>
+              <button type="button" className="btn-accent" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Upgrade rapide', () => runMaintenanceProfile('fast-upgrade'))}>
                 Upgrade rapide
               </button>
-              <button type="button" className="btn-secondary" onClick={() => runMaintenanceProfile('repair-sources')}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Réparation des sources', () => runMaintenanceProfile('repair-sources'))}>
                 Réparer les sources
               </button>
-              <button type="button" className="btn-secondary" onClick={() => runMaintenanceProfile('full-maintenance')}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Maintenance forcée', () => runMaintenanceProfile('full-maintenance'))}>
                 Mode maintenance forcée
               </button>
-              <button type="button" className="btn-secondary" onClick={cleanupWingetCache}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Nettoyage du cache', cleanupWingetCache)}>
                 Nettoyer cache winget
               </button>
               <button type="button" className="btn-secondary" onClick={openDeliveryOptimization}>
                 Ouvrir Delivery Optimization
               </button>
-              <button type="button" className="btn-secondary" onClick={restoreDefaultSources}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Restauration des sources', restoreDefaultSources)}>
                 Restaurer sources par défaut
               </button>
             </div>
+            {busyAction && <p className="mt-3 text-sm text-slate-500" role="status">{busyAction} en cours…</p>}
+            {hasActiveOperations && <p className="mt-3 text-sm text-slate-500" role="status">Terminez la file d’opérations avant la maintenance.</p>}
           </div>
         </section>
 
@@ -378,7 +410,8 @@ export default function SettingsView() {
                         {src.name.toLowerCase() === 'msstore' && (
                           <button
                             type="button"
-                            onClick={() => removeSource(src.name)}
+                            onClick={() => runMutation(`Suppression de ${src.name}`, () => removeSource(src.name))}
+                            disabled={Boolean(busyAction) || hasActiveOperations}
                             className="mt-2 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-[11px] font-bold text-warning"
                           >
                             Retirer msstore

@@ -3,6 +3,19 @@ export interface CartItem {
   name: string
 }
 
+export interface OperationRecord {
+  id: string
+  kind: 'install' | 'upgrade' | 'uninstall'
+  packageId: string
+  packageName: string
+  status: 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
+  queuedAt: number
+  startedAt: number | null
+  finishedAt: number | null
+  result: string | null
+  error: string | null
+}
+
 export interface ProgressPayload {
   current_index: number
   total: number

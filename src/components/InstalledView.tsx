@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldCheck, Trash2, X } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
@@ -6,6 +6,7 @@ import { InstalledResult } from '../types'
 
 interface InstalledViewProps {
   onUninstall: (id: string, name: string) => Promise<void>
+  activePackages: Set<string>
 }
 
 function normalizeInstalledResult(app: Partial<InstalledResult> | null | undefined): InstalledResult | null {
@@ -25,15 +26,17 @@ function normalizeInstalledResult(app: Partial<InstalledResult> | null | undefin
   }
 }
 
-export default function InstalledView({ onUninstall }: InstalledViewProps) {
+export default function InstalledView({ onUninstall, activePackages }: InstalledViewProps) {
   const [installedApps, setInstalledApps] = useState<InstalledResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [uninstallingAppId, setUninstallingAppId] = useState<string | null>(null)
   const [confirmUninstallId, setConfirmUninstallId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const requestId = useRef(0)
 
   const fetchInstalledApps = async () => {
+    const request = ++requestId.current
     setLoading(true)
     setError(null)
     try {
@@ -46,26 +49,28 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
         `[InstalledView] Successfully fetched ${results.length} installed apps; ${normalizedResults.length} displayable apps.`,
         normalizedResults.slice(0, 10)
       )
-      setInstalledApps(normalizedResults)
+      if (request === requestId.current) setInstalledApps(normalizedResults)
     } catch (e) {
       console.error(e)
-      setError('Impossible de récupérer la liste des logiciels installés.')
+      if (request === requestId.current) setError(`Impossible de récupérer la liste des logiciels installés : ${e}`)
     } finally {
-      setLoading(false)
+      if (request === requestId.current) setLoading(false)
     }
   }
 
   useEffect(() => {
     fetchInstalledApps()
 
-    const handleUninstalledEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail && detail.id) {
-        setInstalledApps(prev => prev.filter(app => app.id !== detail.id))
-      }
-    }
+    const handleUninstalledEvent = () => { void fetchInstalledApps() }
     window.addEventListener('software-uninstalled', handleUninstalledEvent)
-    return () => window.removeEventListener('software-uninstalled', handleUninstalledEvent)
+    window.addEventListener('software-upgraded', handleUninstalledEvent)
+    window.addEventListener('software-installed', handleUninstalledEvent)
+    return () => {
+      requestId.current++
+      window.removeEventListener('software-uninstalled', handleUninstalledEvent)
+      window.removeEventListener('software-upgraded', handleUninstalledEvent)
+      window.removeEventListener('software-installed', handleUninstalledEvent)
+    }
   }, [])
 
   const filteredApps = useMemo(() => {
@@ -175,7 +180,7 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
             </div>
             <div className="divide-y divide-slate-200/70 dark:divide-white/10">
               {filteredApps.map((app, idx) => {
-                const isUninstalling = uninstallingAppId === app.id
+                const isUninstalling = uninstallingAppId === app.id || activePackages.has(app.id)
                 const isConfirming = confirmUninstallId === app.id
 
                 return (
@@ -196,6 +201,7 @@ export default function InstalledView({ onUninstall }: InstalledViewProps) {
                       <div className="flex gap-2 lg:justify-end">
                         <button
                           onClick={() => handleUninstall(app.id, app.name)}
+                          disabled={isUninstalling}
                           className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-error px-3 py-2 text-xs font-bold text-white"
                           type="button"
                         >

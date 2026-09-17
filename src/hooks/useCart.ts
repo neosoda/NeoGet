@@ -5,9 +5,7 @@ export function useCart() {
   const [cart, setCart] = useState<CartItem[]>([])
 
   const handleAddToCart = (item: CartItem) => {
-    if (!cart.some(i => i.id === item.id)) {
-      setCart(prev => [...prev, item])
-    }
+    setCart(previous => previous.some(existing => existing.id.toLowerCase() === item.id.toLowerCase()) ? previous : [...previous, item])
   }
 
   const handleRemoveFromCart = (id: string) => {

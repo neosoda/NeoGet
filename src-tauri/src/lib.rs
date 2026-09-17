@@ -1,4 +1,5 @@
 mod commands;
+mod operations;
 
 pub use commands::*;
 
@@ -6,7 +7,9 @@ pub use commands::*;
 pub fn run() {
     // Déterminer le chemin du dossier des logs (%LOCALAPPDATA%\NeoGet\logs)
     let log_path = if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-        std::path::PathBuf::from(local_app_data).join("NeoGet").join("logs")
+        std::path::PathBuf::from(local_app_data)
+            .join("NeoGet")
+            .join("logs")
     } else {
         let mut p = std::env::current_exe().unwrap_or_default();
         p.pop();
@@ -25,6 +28,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        .manage(operations::OperationManager::new())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
@@ -39,19 +43,20 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             commands::get_software_list,
-            commands::install_software,
+            operations::queue_install,
+            operations::queue_install_batch,
+            operations::queue_upgrade,
+            operations::queue_upgrade_batch,
+            operations::queue_uninstall,
+            operations::list_operations,
             commands::check_winget,
             commands::install_winget,
             commands::get_installation_status,
             commands::is_admin,
             commands::search_winget,
-            commands::install_software_batch,
-            commands::upgrade_software_batch,
             commands::relaunch_as_admin,
             commands::check_upgrades,
-            commands::upgrade_software,
             commands::get_installed_software,
-            commands::uninstall_software,
             commands::export_configuration,
             commands::import_configuration,
             commands::get_system_diagnostic,
@@ -59,7 +64,6 @@ pub fn run() {
             commands::update_winget_sources,
             commands::remove_winget_source,
             commands::list_winget_sources,
-            commands::winget_upgrade_all,
             commands::run_winget_maintenance_profile,
             commands::cleanup_winget_download_cache,
             commands::open_delivery_optimization_settings,

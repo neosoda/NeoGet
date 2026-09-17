@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check,
@@ -262,6 +262,8 @@ export default function SoftwareGrid({
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [globalSearchResults, setGlobalSearchResults] = useState<WinGetResult[]>([])
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const searchRequest = useRef(0)
   const [customApps, setCustomApps] = useState<Software[]>([])
 
   const loadCustomApps = () => {
@@ -315,20 +317,25 @@ export default function SoftwareGrid({
   }, [searchQuery, currentCategory])
 
   useEffect(() => {
+    const request = ++searchRequest.current
     if (mode === 'global' && searchQuery.length >= 2) {
+      setIsSearchingGlobal(true)
+      setSearchError(null)
       const timer = setTimeout(() => {
-        handleGlobalSearch(searchQuery)
+        void handleGlobalSearch(searchQuery, request)
       }, 450)
-      return () => clearTimeout(timer)
+      return () => { clearTimeout(timer); searchRequest.current++ }
     }
 
-    if (mode === 'global' && searchQuery.length < 2) {
+    if (mode === 'global') {
       setGlobalSearchResults([])
+      setIsSearchingGlobal(false)
+      setSearchError(null)
     }
+    return () => { searchRequest.current++ }
   }, [searchQuery, mode])
 
-  const handleGlobalSearch = async (query: string) => {
-    setIsSearchingGlobal(true)
+  const handleGlobalSearch = async (query: string, request: number) => {
     try {
       const results = await invoke<WinGetResult[]>('search_winget', { query })
       const normalizedResults = results
@@ -339,11 +346,12 @@ export default function SoftwareGrid({
         `[SoftwareGrid] Global search returned ${results.length} results; ${normalizedResults.length} displayable results.`,
         normalizedResults.slice(0, 10)
       )
-      setGlobalSearchResults(normalizedResults)
+      if (request === searchRequest.current) setGlobalSearchResults(normalizedResults)
     } catch (error) {
       console.error('Erreur recherche globale:', error)
+      if (request === searchRequest.current) setSearchError(`Recherche WinGet impossible : ${error}`)
     } finally {
-      setIsSearchingGlobal(false)
+      if (request === searchRequest.current) setIsSearchingGlobal(false)
     }
   }
 
@@ -426,6 +434,10 @@ export default function SoftwareGrid({
           {Array.from({ length: 6 }).map((_, index) => <SkeletonCard key={index} />)}
         </div>
       )
+    }
+
+    if (searchError) {
+      return <div className="surface-soft p-6 text-sm text-error" role="alert">{searchError}</div>
     }
 
     if (searchQuery.length > 0 && searchQuery.length < 2) {

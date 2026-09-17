@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, ArrowRight, CheckCircle2, Download, RefreshCw, ShieldAlert, Sparkles } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
-import { UpgradeResult } from '../types'
+import { CartItem, UpgradeResult } from '../types'
 import { useSystemStatus } from '../hooks/useSystemStatus'
 
 interface UpgradesViewProps {
   loading: Set<string>
   onUpgrade: (id: string, name: string) => Promise<void>
+  onUpgradeBatch: (items: CartItem[]) => Promise<unknown>
 }
 
 function normalizeUpgradeResult(app: Partial<UpgradeResult> | null | undefined): UpgradeResult | null {
@@ -34,7 +35,7 @@ const formatVersion = (ver?: string) => {
   return ver.startsWith('v') || ver.startsWith('V') ? ver : `v${ver}`
 }
 
-export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) {
+export default function UpgradesView({ loading, onUpgrade, onUpgradeBatch }: UpgradesViewProps) {
   const { isAdmin } = useSystemStatus()
   const [upgrades, setUpgrades] = useState<UpgradeResult[]>([])
   const [scanning, setScanning] = useState(false)
@@ -42,9 +43,11 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
   const [error, setError] = useState<string | null>(null)
   const [localLoading, setLocalLoading] = useState<Set<string>>(new Set())
   const [upgradingAll, setUpgradingAll] = useState(false)
-  const [recentlyUpgraded, setRecentlyUpgraded] = useState<Set<string>>(new Set())
+  const scanId = useRef(0)
+  const activeUpdates = upgrades.filter(item => loading.has(item.id) || localLoading.has(item.id)).length
 
   const scanUpgrades = async () => {
+    const request = ++scanId.current
     setScanning(true)
     setError(null)
     try {
@@ -52,34 +55,30 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
       const results = await invoke<UpgradeResult[]>('check_upgrades', { includeUnknown })
       const normalizedResults = results
         .map(normalizeUpgradeResult)
-        .filter((app): app is UpgradeResult => app !== null && !recentlyUpgraded.has(app.id))
+        .filter((app): app is UpgradeResult => app !== null)
 
       console.info(
         `[UpgradesView] Successfully fetched ${results.length} upgrades; ${normalizedResults.length} displayable upgrades.`,
         normalizedResults.slice(0, 10)
       )
-      setUpgrades(normalizedResults)
-      setHasScanned(true)
+      if (request === scanId.current) {
+        setUpgrades(normalizedResults)
+        setHasScanned(true)
+      }
     } catch (e) {
       console.error(e)
-      setError('Impossible de charger les mises à jour. Vérifiez que WinGet fonctionne correctement.')
+      if (request === scanId.current) setError(`Impossible de charger les mises à jour : ${e}`)
     } finally {
-      setScanning(false)
+      if (request === scanId.current) setScanning(false)
     }
   }
 
   useEffect(() => {
     scanUpgrades()
 
-    const handleUpgradedEvent = (e: Event) => {
-      const detail = (e as CustomEvent).detail
-      if (detail && detail.id) {
-        setRecentlyUpgraded(prev => new Set(prev).add(detail.id))
-        setUpgrades(prev => prev.filter(item => item.id !== detail.id))
-      }
-    }
+    const handleUpgradedEvent = () => { void scanUpgrades() }
     window.addEventListener('software-upgraded', handleUpgradedEvent)
-    return () => window.removeEventListener('software-upgraded', handleUpgradedEvent)
+    return () => { scanId.current++; window.removeEventListener('software-upgraded', handleUpgradedEvent) }
   }, [])
 
   const handleUpgrade = async (id: string, name: string) => {
@@ -103,17 +102,15 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
   }
 
   const handleUpgradeAll = async () => {
-    if (upgrades.length === 0 || upgradingAll) return
+    if (upgrades.length === 0 || upgradingAll || activeUpdates > 0) return
     const confirmed = confirm(`Voulez-vous lancer la mise à jour de ${upgrades.length} logiciels ?`)
     if (!confirmed) return
 
     setUpgradingAll(true)
     setError(null)
     try {
-      const mode = localStorage.getItem('neoget-install-mode') === 'interactive' ? 'interactive' : 'silent'
       const items = upgrades.map(u => ({ id: u.id, name: u.name }))
-      const result = await invoke<string>('upgrade_software_batch', { items, mode })
-      console.info('[UpgradesView] Batch de mise à jour lancé :', result)
+      await onUpgradeBatch(items)
     } catch (e) {
       console.error('[UpgradesView] Échec du batch :', e)
       setError(`Impossible de démarrer la mise à jour groupée : ${e}`)
@@ -170,9 +167,9 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
               {scanning ? 'Recherche...' : 'Rechercher'}
             </button>
             {upgrades.length > 0 && (
-              <button onClick={handleUpgradeAll} disabled={scanning || upgradingAll || localLoading.size > 0} className="btn-accent" type="button">
+              <button onClick={handleUpgradeAll} disabled={scanning || upgradingAll || activeUpdates > 0} className="btn-accent" type="button">
                 <Download className="h-4 w-4" />
-                {upgradingAll ? 'Mise à jour...' : `Tout mettre à jour (${upgrades.length})`}
+                {upgradingAll || activeUpdates > 0 ? 'Mise à jour en cours' : `Tout mettre à jour (${upgrades.length})`}
               </button>
             )}
           </div>
@@ -184,7 +181,7 @@ export default function UpgradesView({ loading, onUpgrade }: UpgradesViewProps) 
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">mises à jour</p>
           </div>
           <div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
-            <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{localLoading.size}</p>
+            <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{activeUpdates}</p>
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">en cours</p>
           </div>
           <div className="rounded-lg border border-success/20 bg-success/10 p-3">

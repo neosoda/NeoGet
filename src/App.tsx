@@ -38,12 +38,6 @@ import { useCart } from './hooks/useCart'
 import { useInstallation } from './hooks/useInstallation'
 
 type ActiveTab = 'starter' | 'search' | 'updates' | 'installed' | 'toolkit' | 'diagnostic' | 'sources'
-type InstallMode = 'silent' | 'interactive'
-
-function getInstallMode(): InstallMode {
-  const mode = localStorage.getItem('neoget-install-mode')
-  return mode === 'interactive' ? 'interactive' : 'silent'
-}
 
 interface MenuItem {
   id: ActiveTab
@@ -292,10 +286,12 @@ function App() {
     installing,
     batchStatus,
     loading,
-    setInstalling,
-    setBatchStatus,
+    operations,
     handleInstallSoftware,
     handleInstallBatch,
+    handleUpgradeSoftware: queueUpgradeSoftware,
+    handleUpgradeBatch,
+    handleUninstallSoftware: queueUninstallSoftware,
     closeOverlay
   } = useInstallation(handleClearCart)
 
@@ -303,6 +299,7 @@ function App() {
   const [isMinimized, setIsMinimized] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
+  const [wingetFixRequest, setWingetFixRequest] = useState(0)
 
   useEffect(() => {
     if (installing) setIsMinimized(false)
@@ -311,13 +308,13 @@ function App() {
   useEffect(() => {
     if (batchStatus && batchStatus.is_finished && !batchStatus.error && batchStatus.total > 0) {
       setShowCelebration(true)
-      showToast('Toutes les installations ont réussi.', 'success')
+      showToast('Toutes les opérations ont réussi.', 'success')
       const t = setTimeout(() => setShowCelebration(false), 6000)
       return () => clearTimeout(t)
     }
 
     if (batchStatus && batchStatus.is_finished && batchStatus.error) {
-      showToast('Installations terminées avec des avertissements.', 'error')
+      showToast('Opérations terminées avec des erreurs.', 'error')
     }
   }, [batchStatus])
 
@@ -368,7 +365,7 @@ function App() {
     } else if (actionKey === 'fix') {
       setActiveTab('diagnostic')
       showToast('Lancement de la réparation de WinGet...', 'info')
-      window.setTimeout(() => window.dispatchEvent(new Event('trigger-winget-fix')), 80)
+      setWingetFixRequest(previous => previous + 1)
     } else if (actionKey === 'export') {
       handleExport()
     } else if (actionKey === 'import') {
@@ -386,84 +383,34 @@ function App() {
   }
 
   const handleUpgradeSoftware = async (id: string, name: string) => {
-    console.info(`[App] Lancement de la mise à jour : ${name} (${id})`)
-    setInstalling(true)
-    setIsMinimized(false)
-    setBatchStatus({
-      current_index: 0,
-      total: 1,
-      current_name: name,
-      message: `Mise à jour de ${name} en cours...`,
-      progress_percent: 0,
-      is_finished: false,
-      error: null
-    })
-
     try {
-      const result = await invoke<string>('upgrade_software', { id, name, mode: getInstallMode() })
-      console.info(`[App] Résultat mise à jour ${name} :`, result)
-      setBatchStatus({
-        current_index: 1,
-        total: 1,
-        current_name: name,
-        message: result,
-        progress_percent: 100,
-        is_finished: true,
-        error: null
-      })
-      window.dispatchEvent(new CustomEvent('software-upgraded', { detail: { id } }))
+      await queueUpgradeSoftware(id, name)
     } catch (e) {
-      console.error(`[App] Erreur mise à jour ${name} :`, e)
-      setBatchStatus({
-        current_index: 0,
-        total: 1,
-        current_name: name,
-        message: 'Échec de la mise à jour',
-        progress_percent: 100,
-        is_finished: true,
-        error: String(e)
-      })
+      showToast(`Impossible de planifier ${name} : ${e}`, 'error')
+    }
+  }
+
+  const handleInstall = async (id: string, name: string) => {
+    try {
+      await handleInstallSoftware(id, name)
+    } catch (e) {
+      showToast(`Impossible de planifier ${name} : ${e}`, 'error')
+    }
+  }
+
+  const handleCartInstall = async () => {
+    try {
+      await handleInstallBatch(cart)
+    } catch (e) {
+      showToast(`Impossible de planifier le panier : ${e}`, 'error')
     }
   }
 
   const handleUninstallSoftware = async (id: string, name: string) => {
-    console.info(`[App] Lancement de la désinstallation : ${name} (${id})`)
-    setInstalling(true)
-    setIsMinimized(false)
-    setBatchStatus({
-      current_index: 0,
-      total: 1,
-      current_name: name,
-      message: `Désinstallation de ${name} en cours...`,
-      progress_percent: 0,
-      is_finished: false,
-      error: null
-    })
-
     try {
-      const result = await invoke<string>('uninstall_software', { id, name, mode: getInstallMode() })
-      console.info(`[App] Résultat désinstallation ${name} :`, result)
-      setBatchStatus({
-        current_index: 1,
-        total: 1,
-        current_name: name,
-        message: result,
-        progress_percent: 100,
-        is_finished: true,
-        error: null
-      })
-      window.dispatchEvent(new CustomEvent('software-uninstalled', { detail: { id } }))
+      await queueUninstallSoftware(id, name)
     } catch (e) {
-      console.error(`[App] Erreur désinstallation ${name} :`, e)
-      setBatchStatus({
-        current_index: 0,
-        total: 1,
-        current_name: name,
-        message: 'Échec de la désinstallation',
-        progress_percent: 100,
-        is_finished: true,
-        error: String(e)
-      })
+      showToast(`Impossible de planifier ${name} : ${e}`, 'error')
     }
   }
 
@@ -534,7 +481,7 @@ function App() {
                     cart={cart}
                     onAddToCart={handleAddToCart}
                     onRemoveFromCart={handleRemoveFromCart}
-                    onInstall={handleInstallSoftware}
+                    onInstall={handleInstall}
                     loading={loading}
                     mode="starter"
                   />
@@ -545,20 +492,20 @@ function App() {
                     cart={cart}
                     onAddToCart={handleAddToCart}
                     onRemoveFromCart={handleRemoveFromCart}
-                    onInstall={handleInstallSoftware}
+                    onInstall={handleInstall}
                     loading={loading}
                     mode="global"
                   />
                 )}
                 {activeTab === 'updates' && (
-                  <UpgradesView loading={loading} onUpgrade={handleUpgradeSoftware} />
+                  <UpgradesView loading={loading} onUpgrade={handleUpgradeSoftware} onUpgradeBatch={handleUpgradeBatch} />
                 )}
                 {activeTab === 'installed' && (
-                  <InstalledView onUninstall={handleUninstallSoftware} />
+                  <InstalledView onUninstall={handleUninstallSoftware} activePackages={loading} />
                 )}
                 {activeTab === 'toolkit' && <WindowsToolkitView isAdmin={isAdmin} />}
-                {activeTab === 'diagnostic' && <SystemDoctorView />}
-                {activeTab === 'sources' && <SettingsView />}
+                {activeTab === 'diagnostic' && <SystemDoctorView fixRequest={wingetFixRequest} onFixRequestHandled={() => setWingetFixRequest(0)} />}
+                {activeTab === 'sources' && <SettingsView onUpgradeBatch={handleUpgradeBatch} hasActiveOperations={loading.size > 0} />}
               </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
@@ -573,7 +520,7 @@ function App() {
             items={cart}
             onRemove={handleRemoveFromCart}
             onClear={handleClearCart}
-            onInstall={() => handleInstallBatch(cart)}
+            onInstall={handleCartInstall}
           />
         )}
       </AnimatePresence>
@@ -588,8 +535,8 @@ function App() {
             className="fixed bottom-5 right-5 z-[999] flex items-center gap-3 rounded-lg border border-accent/25 bg-[#0E171D]/[0.92] px-4 py-3 text-sm font-bold text-white shadow-soft-dark backdrop-blur-xl transition hover:border-accent/40"
             type="button"
           >
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-            <span className="max-w-[220px] truncate">{batchStatus.current_name || 'Installation...'}</span>
+            {batchStatus.is_finished ? batchStatus.error ? <AlertCircle className="h-4 w-4 text-error" /> : <CheckCircle2 className="h-4 w-4 text-success" /> : <span className="h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />}
+            <span className="max-w-[220px] truncate">{batchStatus.is_finished ? 'Opérations terminées' : batchStatus.current_name || 'Opération...'}</span>
             <span className="text-accent">{progress}%</span>
           </motion.button>
         )}
@@ -644,6 +591,19 @@ function App() {
               </div>
 
               <div className="flex-1 space-y-5 overflow-y-auto pr-1">
+                <div className="space-y-2" aria-live="polite">
+                  {operations.map(operation => (
+                    <div key={operation.id} className="rounded-lg border border-white/10 bg-white/[0.045] p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-bold">{operation.packageName}</span>
+                        <span className={operation.status === 'failed' ? 'text-error' : operation.status === 'success' ? 'text-success' : 'text-accent'}>
+                          {{ queued: 'En attente', running: 'En cours', success: 'Terminé', failed: 'Échec', cancelled: 'Annulé' }[operation.status]}
+                        </span>
+                      </div>
+                      {operation.error && <p className="mt-1 whitespace-pre-wrap text-xs text-rose-200">{operation.error}</p>}
+                    </div>
+                  ))}
+                </div>
                 <div className="surface-soft border-white/10 bg-white/[0.045] p-4">
                   <div className="flex items-center gap-4">
                     {!batchStatus.is_finished ? (
@@ -653,8 +613,8 @@ function App() {
                         <span className="text-xs font-extrabold text-accent">{progress}%</span>
                       </div>
                     ) : (
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-success/20 bg-success/10 text-success">
-                        <CheckCircle2 className="h-7 w-7" />
+                      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border ${batchStatus.error ? 'border-error/20 bg-error/10 text-error' : 'border-success/20 bg-success/10 text-success'}`}>
+                        {batchStatus.error ? <AlertCircle className="h-7 w-7" /> : <CheckCircle2 className="h-7 w-7" />}
                       </div>
                     )}
                     <div className="min-w-0">

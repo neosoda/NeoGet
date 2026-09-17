@@ -1,6 +1,8 @@
+use crate::operations::OperationManager;
 use log::{error, info, warn};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
+    collections::HashSet,
     process::{Output, Stdio},
     sync::{
         atomic::{AtomicBool, AtomicU32, Ordering},
@@ -8,7 +10,7 @@ use std::{
     },
     time::Duration,
 };
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command as TokioCommand;
 
@@ -119,6 +121,57 @@ fn already_installed_output(normalized_output: &str) -> bool {
         || normalized_output.contains("found an existing package already installed")
         || normalized_output.contains("no applicable upgrade found")
         || normalized_output.contains("no newer package versions are available")
+}
+
+fn no_winget_result(normalized_output: &str) -> bool {
+    normalized_output.contains("no package found matching input criteria")
+        || normalized_output.contains("no installed package found")
+        || normalized_output.contains("no applicable upgrade found")
+        || normalized_output.contains("no upgrades available")
+        || normalized_output.contains("no available upgrade found")
+        || normalized_output.contains("aucun package trouve")
+        || normalized_output.contains("aucun paquet trouve")
+        || normalized_output.contains("aucune mise a jour disponible")
+        || normalized_output.contains("aucune mise a niveau disponible")
+}
+
+fn winget_scan_error(operation: &str, output: &Output) -> Option<String> {
+    if output.status.success() {
+        return None;
+    }
+    let detail = format!(
+        "{}\n{}",
+        decode_command_output(&output.stdout),
+        decode_command_output(&output.stderr)
+    );
+    if no_winget_result(&normalize_for_match(&detail)) {
+        return None;
+    }
+    Some(format!(
+        "{} a échoué (code {}). {}",
+        operation,
+        output.status.code().unwrap_or(-1),
+        detail.trim()
+    ))
+}
+
+fn ensure_empty_winget_output(operation: &str, output: &str) -> Result<(), String> {
+    let normalized = normalize_for_match(output);
+    if normalized.trim().is_empty() || no_winget_result(&normalized) {
+        return Ok(());
+    }
+    let lines: Vec<&str> = normalized
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    if lines.len() == 1 && lines[0].contains("version") && lines[0].contains("id") {
+        return Ok(());
+    }
+    Err(format!(
+        "Sortie WinGet inattendue pendant {} : {}",
+        operation,
+        output.chars().take(500).collect::<String>()
+    ))
 }
 
 fn privilege_error_output(normalized_output: &str) -> bool {
@@ -402,9 +455,10 @@ async fn run_command_streaming_with_timeout(
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
+    let program = cmd.as_std().get_program().to_string_lossy().to_string();
     let mut child = cmd.spawn().map_err(|e| {
         error!("Erreur systeme pendant {}: {}", operation, e);
-        format!("Erreur systeme pendant {}: {}", operation, e)
+        command_launch_error(&program, operation, &e)
     })?;
 
     let stdout = child.stdout.take();
@@ -485,11 +539,12 @@ async fn run_command_with_timeout(
 
     cmd.kill_on_drop(true);
 
+    let program = cmd.as_std().get_program().to_string_lossy().to_string();
     match tokio::time::timeout(timeout, cmd.output()).await {
         Ok(Ok(output)) => Ok(output),
         Ok(Err(e)) => {
             error!("Erreur systeme pendant {}: {}", operation, e);
-            Err(format!("Erreur systeme pendant {}: {}", operation, e))
+            Err(command_launch_error(&program, operation, &e))
         }
         Err(_) => {
             error!(
@@ -765,7 +820,7 @@ pub async fn install_software_batch(
                 total,
                 current_index,
             )
-                .await
+            .await
             {
                 Ok(_) => {
                     success_count += 1;
@@ -855,10 +910,7 @@ pub async fn upgrade_software_batch(
                 current_index,
                 total,
                 current_name: item.name.clone(),
-                message: format!(
-                    "Mise à jour de {} ({}/{})",
-                    item.name, current_index, total
-                ),
+                message: format!("Mise à jour de {} ({}/{})", item.name, current_index, total),
                 progress_percent: Some((index as f32 / total.max(1) as f32) * 100.0),
                 is_finished: false,
                 error: None,
@@ -866,7 +918,15 @@ pub async fn upgrade_software_batch(
 
             let _ = app.emit("installation-progress", &payload);
 
-            match upgrade_software(app.clone(), item.id.clone(), item.name.clone(), mode.clone()).await {
+            match upgrade_software(
+                app.clone(),
+                item.id.clone(),
+                item.name.clone(),
+                mode.clone(),
+                None,
+            )
+            .await
+            {
                 Ok(_) => {
                     success_count += 1;
                     info!("Succès mise à jour batch pour {}", item.name);
@@ -887,7 +947,10 @@ pub async fn upgrade_software_batch(
                 }
                 Err(e) => {
                     failed_names.push(item.name.clone());
-                    error!("Erreur lors de la mise à jour batch de {} : {}", item.name, e);
+                    error!(
+                        "Erreur lors de la mise à jour batch de {} : {}",
+                        item.name, e
+                    );
 
                     let error_payload = ProgressPayload {
                         current_index,
@@ -934,10 +997,11 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     let output =
         run_command_with_timeout(&mut cmd, WINGET_SEARCH_TIMEOUT, "la recherche WinGet").await?;
 
+    if let Some(message) = winget_scan_error("La recherche WinGet", &output) {
+        return Err(message);
+    }
     if !output.status.success() {
-        let stderr = decode_command_output(&output.stderr);
-        error!("La recherche WinGet a echoue : {}", stderr.trim());
-        return Err(format!("La recherche WinGet a echoue : {}", stderr.trim()));
+        return Ok(Vec::new());
     }
 
     let stdout = decode_command_output(&output.stdout);
@@ -946,6 +1010,7 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     let lines: Vec<&str> = clean_stdout.lines().collect();
 
     if lines.len() < 2 {
+        ensure_empty_winget_output("la recherche", &stdout)?;
         info!("Aucun resultat trouve pour '{}'", query);
         return Ok(results);
     }
@@ -963,7 +1028,7 @@ pub async fn search_winget(query: String) -> Result<Vec<WinGetResult>, String> {
     let h_idx = match header_idx {
         Some(idx) => idx,
         None => {
-            info!("Entête non trouvée pour la recherche '{}'", query);
+            ensure_empty_winget_output("la recherche", &stdout)?;
             return Ok(results);
         }
     };
@@ -1051,7 +1116,8 @@ pub async fn check_winget() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn install_winget() -> Result<String, String> {
+pub async fn install_winget(manager: State<'_, OperationManager>) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     info!("Debut de l'installation automatique de WinGet via GitHub API...");
     let script = r#"
 $ProgressPreference = 'SilentlyContinue'
@@ -1129,7 +1195,10 @@ pub async fn is_admin() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn relaunch_as_admin() -> Result<String, String> {
+pub async fn relaunch_as_admin(manager: State<'_, OperationManager>) -> Result<String, String> {
+    if manager.has_active() {
+        return Err("Attendez la fin des opérations avant de relancer NeoGet.".into());
+    }
     info!("Relancement de NeoGet avec privilèges administrateur (UAC)...");
     let exe = std::env::current_exe()
         .map_err(|e| format!("Impossible de déterminer le chemin de l'exécutable : {}", e))?;
@@ -1138,8 +1207,27 @@ pub async fn relaunch_as_admin() -> Result<String, String> {
         escape_powershell_single_quoted(&exe.to_string_lossy())
     );
     let mut cmd = powershell_command(&script);
-    let _ = cmd.spawn();
+    let output = run_command_with_timeout(
+        &mut cmd,
+        POWERSHELL_CHECK_TIMEOUT,
+        "la relance administrateur",
+    )
+    .await?;
+    if !output.status.success() {
+        return Err(format!(
+            "Relance administrateur annulée ou refusée : {}",
+            decode_command_output(&output.stderr)
+        ));
+    }
     std::process::exit(0);
+}
+
+fn command_launch_error(program: &str, operation: &str, error: &std::io::Error) -> String {
+    if error.kind() == std::io::ErrorKind::NotFound && program.eq_ignore_ascii_case("winget") {
+        return "WinGet est introuvable. Installez ou réparez App Installer, puis réessayez."
+            .into();
+    }
+    format!("Erreur système pendant {} : {}", operation, error)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -1253,6 +1341,13 @@ pub async fn check_upgrades(include_unknown: Option<bool>) -> Result<Vec<Upgrade
     )
     .await?;
 
+    if let Some(message) = winget_scan_error("La recherche de mises à jour", &output) {
+        return Err(message);
+    }
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
     let stdout = decode_command_output(&output.stdout);
     let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
@@ -1260,6 +1355,7 @@ pub async fn check_upgrades(include_unknown: Option<bool>) -> Result<Vec<Upgrade
     info!("[check_upgrades] {} lignes de sortie WinGet", lines.len());
 
     if lines.len() < 2 {
+        ensure_empty_winget_output("la recherche de mises à jour", &stdout)?;
         info!("Aucune mise à jour disponible.");
         return Ok(results);
     }
@@ -1282,10 +1378,7 @@ pub async fn check_upgrades(include_unknown: Option<bool>) -> Result<Vec<Upgrade
     let h_idx = match header_idx {
         Some(idx) => idx,
         None => {
-            info!(
-                "[check_upgrades] Entête non trouvée. Premières lignes: {:?}",
-                &lines[..std::cmp::min(5, lines.len())]
-            );
+            ensure_empty_winget_output("la recherche de mises à jour", &stdout)?;
             return Ok(results);
         }
     };
@@ -1364,6 +1457,7 @@ pub async fn upgrade_software(
     id: String,
     name: String,
     mode: Option<String>,
+    force: Option<bool>,
 ) -> Result<String, String> {
     info!("Tentative de mise à jour de {} (ID: {})", name, id);
 
@@ -1372,7 +1466,9 @@ pub async fn upgrade_software(
     for arg in build_winget_runtime_args(mode.as_deref()) {
         cmd.arg(arg);
     }
-    cmd.arg("--force");
+    if force.unwrap_or(true) {
+        cmd.arg("--force");
+    }
 
     let output = run_command_streaming_with_timeout(
         &mut cmd,
@@ -1392,6 +1488,11 @@ pub async fn upgrade_software(
     let stderr = decode_command_output(&output.stderr);
     let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
 
+    if already_installed_output(&normalized_output) {
+        info!("Mise à jour déjà appliquée : {}", name);
+        return Ok(format!("{} est déjà à jour.", name));
+    }
+
     if output.status.success() {
         info!("Mise à jour réussie : {}", name);
         return Ok(format!("{} a été mis à jour avec succès.", name));
@@ -1403,7 +1504,10 @@ pub async fn upgrade_software(
         || code == (0x8A15002Bu32 as i32)
         || privilege_error_output(&normalized_output)
     {
-        error!("Erreur de privilèges ou application fermée requise pour {}", name);
+        error!(
+            "Erreur de privilèges ou application fermée requise pour {}",
+            name
+        );
         return Err(format!(
             "{} : fermez le logiciel s'il est ouvert et relancez NeoGet en tant qu'administrateur.",
             name
@@ -1448,6 +1552,13 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     )
     .await?;
 
+    if let Some(message) = winget_scan_error("L'inventaire des logiciels", &output) {
+        return Err(message);
+    }
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+
     let stdout = decode_command_output(&output.stdout);
     let clean_stdout = stdout.replace("\r\n", "\n").replace('\r', "\n");
     let mut results = Vec::new();
@@ -1455,6 +1566,7 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     info!("[get_installed] {} lignes de sortie WinGet", lines.len());
 
     if lines.len() < 2 {
+        ensure_empty_winget_output("l'inventaire", &stdout)?;
         return Ok(results);
     }
 
@@ -1476,10 +1588,7 @@ pub async fn get_installed_software() -> Result<Vec<InstalledResult>, String> {
     let h_idx = match header_idx {
         Some(idx) => idx,
         None => {
-            info!(
-                "[get_installed] Entête non trouvée. Premières lignes: {:?}",
-                &lines[..std::cmp::min(5, lines.len())]
-            );
+            ensure_empty_winget_output("l'inventaire", &stdout)?;
             return Ok(results);
         }
     };
@@ -1562,7 +1671,13 @@ pub async fn uninstall_software(
     info!("Tentative de désinstallation de {} (ID: {})", name, id);
 
     let mut cmd = TokioCommand::new("winget");
-    cmd.args(["uninstall", "--id", &id, "--exact", "--accept-source-agreements"]);
+    cmd.args([
+        "uninstall",
+        "--id",
+        &id,
+        "--exact",
+        "--accept-source-agreements",
+    ]);
     if mode.unwrap_or_else(|| "silent".to_string()) == "silent" {
         cmd.args(["--disable-interactivity", "--silent"]);
     }
@@ -1584,6 +1699,10 @@ pub async fn uninstall_software(
     let stdout = decode_command_output(&output.stdout);
     let stderr = decode_command_output(&output.stderr);
     let normalized_output = normalize_for_match(&format!("{}\n{}", stdout, stderr));
+
+    if no_winget_result(&normalized_output) {
+        return Ok(format!("{} n'est déjà plus installé.", name));
+    }
 
     if output.status.success() {
         info!("Désinstallation réussie : {}", name);
@@ -1617,6 +1736,7 @@ pub async fn uninstall_software(
 
 #[tauri::command]
 pub async fn export_configuration(items: Vec<BatchItem>) -> Result<String, String> {
+    crate::operations::validate_batch(&items)?;
     let json_content = serde_json::to_string_pretty(&items)
         .map_err(|e| format!("Erreur sérialisation : {}", e))?;
 
@@ -1698,7 +1818,12 @@ if ($Show -eq "OK") {
         let json_str = stdout.split("SUCCESS:").nth(1).unwrap_or("").trim();
         let items: Vec<BatchItem> = serde_json::from_str(json_str)
             .map_err(|e| format!("Erreur lors de la lecture du fichier JSON : {}", e))?;
-        Ok(items)
+        crate::operations::validate_batch(&items)?;
+        let mut seen = HashSet::new();
+        Ok(items
+            .into_iter()
+            .filter(|item| seen.insert(item.id.to_lowercase()))
+            .collect())
     } else {
         Err("Import annulé".to_string())
     }
@@ -1809,7 +1934,8 @@ Write-Output (ConvertTo-Json $Diagnostic)
 }
 
 #[tauri::command]
-pub async fn reset_winget_sources() -> Result<String, String> {
+pub async fn reset_winget_sources(manager: State<'_, OperationManager>) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     info!("Réinitialisation forcée des sources WinGet...");
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["source", "reset", "--force"]);
@@ -1829,14 +1955,18 @@ pub async fn reset_winget_sources() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn update_winget_sources() -> Result<String, String> {
+pub async fn update_winget_sources(manager: State<'_, OperationManager>) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     info!("Mise à jour des sources WinGet...");
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["source", "update"]);
 
-    let output =
-        run_command_with_timeout(&mut cmd, Duration::from_secs(90), "la mise à jour des sources")
-            .await?;
+    let output = run_command_with_timeout(
+        &mut cmd,
+        Duration::from_secs(90),
+        "la mise à jour des sources",
+    )
+    .await?;
     if output.status.success() {
         Ok("Les sources WinGet ont été mises à jour.".to_string())
     } else {
@@ -1846,7 +1976,11 @@ pub async fn update_winget_sources() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn remove_winget_source(name: String) -> Result<String, String> {
+pub async fn remove_winget_source(
+    manager: State<'_, OperationManager>,
+    name: String,
+) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     info!("Suppression de la source WinGet: {}", name);
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["source", "remove", &name]);
@@ -1861,7 +1995,10 @@ pub async fn remove_winget_source(name: String) -> Result<String, String> {
         Ok(format!("Source '{}' supprimée.", name))
     } else {
         let stderr = decode_command_output(&output.stderr);
-        Err(format!("Échec suppression de la source '{}': {}", name, stderr))
+        Err(format!(
+            "Échec suppression de la source '{}': {}",
+            name, stderr
+        ))
     }
 }
 
@@ -1875,7 +2012,9 @@ pub async fn winget_upgrade_all(
     info!("Mise à jour globale WinGet démarrée...");
 
     // Fetch available upgrades first to allow sequential fallback if global command fails
-    let upgrades = check_upgrades(Some(include_unknown)).await.unwrap_or_default();
+    let upgrades = check_upgrades(Some(include_unknown))
+        .await
+        .unwrap_or_default();
 
     let mut cmd = TokioCommand::new("winget");
     cmd.args(["upgrade", "--all"]);
@@ -1895,7 +2034,11 @@ pub async fn winget_upgrade_all(
         "la mise à jour globale WinGet",
         Some(ProgressContext {
             app: app.clone(),
-            total: if upgrades.is_empty() { 1 } else { upgrades.len() },
+            total: if upgrades.is_empty() {
+                1
+            } else {
+                upgrades.len()
+            },
             current_index: 1,
             current_name: "Tous les paquets".to_string(),
             action_label: "Mise à jour globale".to_string(),
@@ -1944,7 +2087,15 @@ pub async fn winget_upgrade_all(
             item.id
         );
 
-        match upgrade_software(app.clone(), item.id.clone(), item.name.clone(), mode.clone()).await {
+        match upgrade_software(
+            app.clone(),
+            item.id.clone(),
+            item.name.clone(),
+            mode.clone(),
+            None,
+        )
+        .await
+        {
             Ok(_) => {
                 succeeded.push(item.name.clone());
             }
@@ -1983,12 +2134,20 @@ pub async fn winget_upgrade_all(
 }
 
 #[tauri::command]
-pub async fn cleanup_winget_download_cache() -> Result<String, String> {
+pub async fn cleanup_winget_download_cache(
+    manager: State<'_, OperationManager>,
+) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     let script = r#"
 Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\*" -Force -ErrorAction SilentlyContinue
 Write-Output "Cache winget nettoye."
 "#;
-    run_powershell_action(script, Duration::from_secs(45), "le nettoyage du cache winget").await
+    run_powershell_action(
+        script,
+        Duration::from_secs(45),
+        "le nettoyage du cache winget",
+    )
+    .await
 }
 
 #[tauri::command]
@@ -2008,39 +2167,21 @@ Write-Output "Parametres Delivery Optimization ouverts."
 #[tauri::command]
 pub async fn run_winget_maintenance_profile(
     app: AppHandle,
+    manager: State<'_, OperationManager>,
     profile: String,
-    mode: Option<String>,
 ) -> Result<Vec<WingetActionResult>, String> {
     let normalized = profile.trim().to_lowercase();
+    let _permit = manager.try_exclusive()?;
     let mut actions: Vec<Vec<String>> = Vec::new();
 
     match normalized.as_str() {
-        "fast-upgrade" => {
-            actions.push(vec!["source".into(), "update".into()]);
-            let mut upgrade = vec!["upgrade".into(), "--all".into()];
-            for arg in build_winget_runtime_args(mode.as_deref()) {
-                upgrade.push(arg.to_string());
-            }
-            upgrade.push("--include-unknown".into());
-            actions.push(upgrade);
-        }
-        "full-maintenance" => {
-            actions.push(vec!["source".into(), "update".into()]);
-            let mut upgrade = vec!["upgrade".into(), "--all".into()];
-            for arg in build_winget_runtime_args(mode.as_deref()) {
-                upgrade.push(arg.to_string());
-            }
-            upgrade.push("--include-unknown".into());
-            upgrade.push("--force".into());
-            actions.push(upgrade);
-        }
         "repair-sources" => {
             actions.push(vec!["source".into(), "reset".into(), "--force".into()]);
             actions.push(vec!["source".into(), "update".into()]);
         }
         _ => {
             return Err(format!(
-                "Profil '{}' inconnu. Utilisez: fast-upgrade, full-maintenance, repair-sources.",
+                "Profil '{}' inconnu. Les mises à jour doivent être lancées par la file d'opérations ; utilisez repair-sources pour les sources.",
                 profile
             ));
         }
@@ -2316,7 +2457,12 @@ ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
 }
 
 #[tauri::command]
-pub async fn apply_windows_tweak(id: String, enabled: bool) -> Result<String, String> {
+pub async fn apply_windows_tweak(
+    manager: State<'_, OperationManager>,
+    id: String,
+    enabled: bool,
+) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     let ps_enabled = if enabled { "$true" } else { "$false" };
     let script_template = match id.as_str() {
         "show_file_extensions" => {
@@ -2449,7 +2595,10 @@ Write-Output 'Etat de l hibernation mis a jour.'
 }
 
 #[tauri::command]
-pub async fn restart_explorer_shell() -> Result<String, String> {
+pub async fn restart_explorer_shell(
+    manager: State<'_, OperationManager>,
+) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     let script = r#"
 Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 900
@@ -2567,7 +2716,11 @@ ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
 }
 
 #[tauri::command]
-pub async fn clean_windows_items(ids: Vec<String>) -> Result<String, String> {
+pub async fn clean_windows_items(
+    manager: State<'_, OperationManager>,
+    ids: Vec<String>,
+) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     if ids.is_empty() {
         return Err("Aucun element de nettoyage selectionne.".to_string());
     }
@@ -2665,7 +2818,11 @@ ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
 }
 
 #[tauri::command]
-pub async fn remove_windows_app_package(package: String) -> Result<String, String> {
+pub async fn remove_windows_app_package(
+    manager: State<'_, OperationManager>,
+    package: String,
+) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     if package.trim().is_empty() {
         return Err("Package AppX manquant.".to_string());
     }
@@ -2772,9 +2929,11 @@ ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
 
 #[tauri::command]
 pub async fn set_startup_entry_enabled(
+    manager: State<'_, OperationManager>,
     entry: StartupEntry,
     enabled: bool,
 ) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     let entry_json = serde_json::to_string(&entry)
         .map_err(|e| format!("Erreur de preparation du demarrage : {}", e))?;
     let escaped_entry = escape_powershell_single_quoted(&entry_json);
@@ -2846,10 +3005,12 @@ ConvertTo-Json -InputObject @($items) -Depth 5 -Compress
 
 #[tauri::command]
 pub async fn set_scheduled_task_enabled(
+    manager: State<'_, OperationManager>,
     task_name: String,
     task_path: String,
     enabled: bool,
 ) -> Result<String, String> {
+    let _permit = manager.try_exclusive()?;
     if task_name.trim().is_empty() {
         return Err("Nom de tache manquant.".to_string());
     }
@@ -2902,6 +3063,17 @@ mod tests {
         assert!(!already_installed_output(
             "installation started successfully"
         ));
+    }
+
+    #[test]
+    fn empty_winget_results_are_distinct_from_failures() {
+        assert!(no_winget_result("no applicable upgrade found"));
+        assert!(no_winget_result("aucune mise a jour disponible"));
+        assert!(!no_winget_result("source unavailable due to network error"));
+        assert!(ensure_empty_winget_output("test", "No upgrades available").is_ok());
+        assert!(
+            ensure_empty_winget_output("test", "source unavailable due to network error").is_err()
+        );
     }
 
     #[test]
