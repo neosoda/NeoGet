@@ -4,6 +4,25 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] — 2026-10-17
+
+### ✨ Nouveautés
+- **Toolkit Windows Étendu (19 optimisations)** :
+  - **Explorateur** : Ouvrir sur Ce PC (`launch_to_this_pc`), Historique du presse-papiers Win+V (`clipboard_history`).
+  - **Interface** : Alignement barre des tâches à gauche (`taskbar_left_align`), Bouton Fin de tâche au clic droit (`taskbar_end_task`).
+  - **Apparence** : Mode sombre natif Windows et applications (`dark_mode`).
+  - **Gaming** : Désactivation de la précision du pointeur pour mouvement 1:1 (`disable_mouse_acceleration`).
+  - **Confidentialité** : Désactivation des suggestions web Bing dans la recherche Démarrer (`disable_bing_search`).
+  - **Performance** : Accélération d'affichage des menus et suppression des délais Explorer (`speed_up_menus`).
+  - **Système** : Activation automatique du pavé numérique au démarrage (`numlock_on_boot`).
+- **Nettoyage CrashDumps** : Nouvelle cible de nettoyage pour les fichiers de vidage mémoire locaux des applications plantées (`%LOCALAPPDATA%\CrashDumps`).
+- **Sécurité et Contrôle d'Intégrité** : Whitelists strictes Rust pour les identifiants d'optimisation et de nettoyage.
+- **Sécurisation Export JSON** : Encodage hexadécimal UTF-8 avant injection dans les dialogues PowerShell.
+- **Portabilité du Pipeline** : Résolution dynamique de `%USERPROFILE%` / `$env:USERPROFILE` dans les scripts de build et de release.
+- **Intégration Sentinel SDD** : Spécification complète et traçabilité des critères d'acceptation, des tâches et des preuves de vérification.
+
+---
+
 ## [2.2.0] — 2026-08-09
 
 ### ✨ Nouveautés
