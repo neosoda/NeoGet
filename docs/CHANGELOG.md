@@ -4,6 +4,17 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [2.3.1] — 2026-10-17
+
+### 🐛 Correctifs & Stabilité
+- **Résolution du crash BEX64 / Fast Fail (0xc0000409) sur "Tout mettre à jour"** :
+  - **Détachement propre de `stdin`** : Configuration explicite de `cmd.stdin(Stdio::null())` pour tous les sous-processus WinGet lancés sous `CREATE_NO_WINDOW`, évitant les avortements brutaux du CRT (`ucrtbase`) liés à des descripteurs de console inexistants ou invalides.
+  - **Suppression de la cible WebView orpheline** : Élimination du canal de journalisation direct vers le Webview dans `tauri-plugin-log` pour préserver le pont IPC asynchrone lors des rafales d'événements.
+  - **Capture globale des paniques** : Ajout d'un hook `std::panic::set_hook` écrivant automatiquement les erreurs critiques avec horodatage dans `%LOCALAPPDATA%\NeoGet\logs\NeoGet.log`.
+  - **Profil Release durci** : Configuration de `panic = "unwind"` et `debug = 1` pour permettre un débobinage ordonné et un diagnostic immédiat en cas d'anomalie.
+
+---
+
 ## [2.3.0] — 2026-10-17
 
 ### ✨ Nouveautés

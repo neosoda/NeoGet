@@ -8,7 +8,7 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en 
 
 <br />
 
-[![Release](https://img.shields.io/badge/Release-v2.3.0-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.0-x64.exe)
+[![Release](https://img.shields.io/badge/Release-v2.3.1-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.1-x64.exe)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111)](https://react.dev)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-24C8DB?style=for-the-badge&logo=tauri&logoColor=fff)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-backend-000000?style=for-the-badge&logo=rust&logoColor=fff)](https://www.rust-lang.org)
@@ -19,7 +19,7 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en 
 <br />
 
 <p>
-  <a href="releases/NeoGet-Setup-2.3.0-x64.exe"><strong>âš¡ TÃ©lÃ©charger l'installateur Windows (.exe)</strong></a>
+  <a href="releases/NeoGet-Setup-2.3.1-x64.exe"><strong>âš¡ TÃ©lÃ©charger l'installateur Windows (.exe)</strong></a>
   Â·
   <a href="docs/SETUP.md"><strong>ðŸ“˜ Guide Dev</strong></a>
   Â·
@@ -90,10 +90,10 @@ Configurer ou maintenir un poste Windows propre exige gÃ©nÃ©ralement l'utili
 TÃ©lÃ©chargez l'installateur Windows puis exÃ©cutez-le :
 
 ```powershell
-.\releases\NeoGet-Setup-2.3.0-x64.exe
+.\releases\NeoGet-Setup-2.3.1-x64.exe
 ```
 
-Le binaire portable est aussi disponible dans `releases\NeoGet-2.3.0-x64.exe`.
+Le binaire portable est aussi disponible dans `releases\NeoGet-2.3.1-x64.exe`.
 
 > **Note** : Pour appliquer les optimisations systÃ¨me avancÃ©es du Toolkit Windows, exÃ©cutez NeoGet avec les privilÃ¨ges administrateur (`Clic-droit -> ExÃ©cuter en tant qu'administrateur`).
 
@@ -143,8 +143,8 @@ NeoGet/
 â”‚   â”œâ”€â”€ src/lib.rs                      # Enregistrement des IPC Handlers & Logger
 â”‚   â””â”€â”€ tauri.conf.json                 # Configuration Tauri v2 & CSP
 â”œâ”€â”€ releases/                           # Artifacts Release vÃ©rifiÃ©s
-â”‚   â”œâ”€â”€ NeoGet-2.3.0-x64.exe            # Binaire portable
-â”‚   â”œâ”€â”€ NeoGet-Setup-2.3.0-x64.exe      # Installateur NSIS
+â”‚   â”œâ”€â”€ NeoGet-2.3.1-x64.exe            # Binaire portable
+â”‚   â”œâ”€â”€ NeoGet-Setup-2.3.1-x64.exe      # Installateur NSIS
 â”‚   â””â”€â”€ SHA256SUMS.txt                  # Empreintes SHA-256
 â”œâ”€â”€ software.json                       # Catalogue Starter Pack par dÃ©faut
 â””â”€â”€ package.json                        # Configuration NPM & scripts de build
@@ -175,7 +175,7 @@ cargo test --manifest-path src-tauri\Cargo.toml
 npm test
 npm run build
 npm run tauri:build
-Get-FileHash .\releases\NeoGet-2.3.0-x64.exe -Algorithm SHA256
+Get-FileHash .\releases\NeoGet-2.3.1-x64.exe -Algorithm SHA256
 ```
 
 ---
