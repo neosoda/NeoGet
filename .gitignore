@@ -18,6 +18,8 @@ build/
 # IDE
 .vscode/
 .idea/
+.serena/
+_A INTEGRER/
 *.swp
 *.swo
 *.sublime-project

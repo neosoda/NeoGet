@@ -1,0 +1,7 @@
+{
+  "specId": "neoget-v2-hardening-and-toolkit",
+  "outcome": "proposed",
+  "summary": "All 3 tasks completed: PRD/TRD/TASKS/TESTS standard spec, Option A hardening (git hygiene, build portability, dead code removal, hex UTF-8 JSON export, doc sync), Option B Windows Toolkit expansion (19 tweaks, 7 cleanup items including CrashDumps, strict whitelist validation). All Rust tests (15 passed, 1 ignored), Node tests (2 passed), and Vite production build passed.",
+  "reviewedAt": "2026-10-17T16:02:41.807Z",
+  "actor": "agent"
+}

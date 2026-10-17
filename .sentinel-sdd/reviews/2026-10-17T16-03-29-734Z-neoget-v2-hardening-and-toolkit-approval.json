@@ -1,0 +1,9 @@
+{
+  "specId": "neoget-v2-hardening-and-toolkit",
+  "outcome": "human_approved",
+  "summary": "Validation finale des options A et B (Hardening v2.2 et expansion du Toolkit Windows avec 9 tweaks et nettoyage CrashDumps)",
+  "reviewedAt": "2026-10-17T16:03:29.734Z",
+  "actor": "human",
+  "approver": "User",
+  "identityVerified": false
+}

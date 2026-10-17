@@ -69,12 +69,102 @@ const previewTweaks: WindowsTweak[] = [
     restart_required: 'Explorateur'
   },
   {
+    id: 'launch_to_this_pc',
+    name: 'Ouvrir Explorer sur Ce PC',
+    description: 'Ouvre l Explorateur Windows directement sur Ce PC au lieu de Accueil.',
+    category: 'Explorateur',
+    risk: 'Faible',
+    enabled: true,
+    requires_admin: false,
+    restart_required: null
+  },
+  {
+    id: 'clipboard_history',
+    name: 'Historique du presse-papiers',
+    description: 'Active l historique multi-elements du presse-papiers (Win + V).',
+    category: 'Explorateur',
+    risk: 'Faible',
+    enabled: true,
+    requires_admin: false,
+    restart_required: null
+  },
+  {
+    id: 'taskbar_left_align',
+    name: 'Barre des taches a gauche',
+    description: 'Aligne les icones de la barre des taches a gauche sur Windows 11.',
+    category: 'Interface',
+    risk: 'Faible',
+    enabled: false,
+    requires_admin: false,
+    restart_required: 'Explorateur'
+  },
+  {
+    id: 'taskbar_end_task',
+    name: 'Bouton Fin de tache (Barre des taches)',
+    description: 'Ajoute l option Fin de tache au clic droit sur une application dans la barre des taches.',
+    category: 'Interface',
+    risk: 'Faible',
+    enabled: true,
+    requires_admin: false,
+    restart_required: null
+  },
+  {
+    id: 'dark_mode',
+    name: 'Theme sombre Windows & Apps',
+    description: 'Active le mode sombre natif pour le systeme Windows et les applications.',
+    category: 'Apparence',
+    risk: 'Faible',
+    enabled: true,
+    requires_admin: false,
+    restart_required: null
+  },
+  {
     id: 'disable_game_dvr',
     name: 'Desactiver Game DVR',
     description: 'Coupe l enregistrement en arriere-plan Xbox Game Bar.',
     category: 'Gaming',
     risk: 'Faible',
     enabled: false,
+    requires_admin: false,
+    restart_required: null
+  },
+  {
+    id: 'disable_mouse_acceleration',
+    name: 'Desactiver l acceleration souris',
+    description: 'Desactive l amelioration de la precision du pointeur pour un mouvement 1:1.',
+    category: 'Gaming',
+    risk: 'Faible',
+    enabled: false,
+    requires_admin: false,
+    restart_required: 'Session'
+  },
+  {
+    id: 'disable_bing_search',
+    name: 'Desactiver Bing dans le menu Demarrer',
+    description: 'Coupe les resultats web Bing et suggestions en ligne dans la recherche Windows.',
+    category: 'Confidentialite',
+    risk: 'Faible',
+    enabled: true,
+    requires_admin: false,
+    restart_required: 'Explorateur'
+  },
+  {
+    id: 'speed_up_menus',
+    name: 'Accelerer l affichage des menus',
+    description: 'Reduit MenuShowDelay et supprime le delai de demarrage Explorer.',
+    category: 'Performance',
+    risk: 'Faible',
+    enabled: false,
+    requires_admin: false,
+    restart_required: 'Explorateur'
+  },
+  {
+    id: 'numlock_on_boot',
+    name: 'Activer Verr Num au demarrage',
+    description: 'Active automatiquement le pave numerique a l ouverture de session.',
+    category: 'Systeme',
+    risk: 'Faible',
+    enabled: true,
     requires_admin: false,
     restart_required: null
   }
@@ -96,6 +186,15 @@ const previewCleanupItems: CleanupItem[] = [
     description: 'Base locale des miniatures d images et videos.',
     size_bytes: 73400320,
     item_count: 12,
+    requires_admin: false,
+    selected: true
+  },
+  {
+    id: 'crash_dumps',
+    name: 'Rapports de plantage (CrashDumps)',
+    description: 'Fichiers de vidage memoire locaux des applications plantees.',
+    size_bytes: 184549376,
+    item_count: 8,
     requires_admin: false,
     selected: true
   },

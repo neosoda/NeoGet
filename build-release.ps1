@@ -52,7 +52,7 @@ if (-not (Test-Path -Path "releases")) {
     New-Item -ItemType Directory -Path "releases" -Force | Out-Null
 }
 
-$releaseExe = "C:\Users\NEO.NEO-PC\.cargo\target\neoget\release\neoget.exe"
+$releaseExe = Join-Path $env:USERPROFILE ".cargo\target\neoget\release\neoget.exe"
 if (-not (Test-Path $releaseExe)) {
     $releaseExe = "src-tauri\target\release\neoget.exe"
 }

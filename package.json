@@ -12,7 +12,7 @@
     "tauri:dev": "tauri dev",
     "tauri:nowatch": "tauri dev --no-watch",
     "launch": "npm run build && tauri dev --no-watch",
-    "tauri:build": "tauri build && node -e \"try { require('child_process').execSync('taskkill /F /IM NeoGet.exe', {stdio:'ignore'}); } catch(e){} require('fs').copyFileSync('C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe', './NeoGet.exe')\""
+    "tauri:build": "tauri build && node -e \"const fs = require('fs'), path = require('path'), cp = require('child_process'); try { cp.execSync('taskkill /F /IM NeoGet.exe', {stdio:'ignore'}); } catch(e){} const userExe = path.join(process.env.USERPROFILE || '', '.cargo/target/neoget/release/neoget.exe'); const srcExe = fs.existsSync(userExe) ? userExe : 'src-tauri/target/release/neoget.exe'; fs.copyFileSync(srcExe, './NeoGet.exe');\""
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",

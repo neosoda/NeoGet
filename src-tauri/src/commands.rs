@@ -1740,7 +1740,11 @@ pub async fn export_configuration(items: Vec<BatchItem>) -> Result<String, Strin
     let json_content = serde_json::to_string_pretty(&items)
         .map_err(|e| format!("Erreur sérialisation : {}", e))?;
 
-    let escaped_json = json_content.replace("'", "''");
+    let hex_json: String = json_content
+        .as_bytes()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect();
 
     let script = format!(
         r#"
@@ -1752,13 +1756,19 @@ $FileBrowser.Title = "Exporter votre configuration"
 $FileBrowser.FileName = "neoget-config.json"
 $Show = $FileBrowser.ShowDialog()
 if ($Show -eq "OK") {{
-    [System.IO.File]::WriteAllText($FileBrowser.FileName, '{}')
+    $hex = '{}'
+    $bytes = New-Object byte[] ($hex.Length / 2)
+    for ($i = 0; $i -lt $hex.Length; $i += 2) {{
+        $bytes[$i / 2] = [Convert]::ToByte($hex.Substring($i, 2), 16)
+    }}
+    $json = [System.Text.Encoding]::UTF8.GetString($bytes)
+    [System.IO.File]::WriteAllText($FileBrowser.FileName, $json, [System.Text.Encoding]::UTF8)
     Write-Output "SUCCESS:$($FileBrowser.FileName)"
 }} else {{
     Write-Output "CANCELLED"
 }}
 "#,
-        escaped_json
+        hex_json
     );
 
     let mut cmd = powershell_command(&script);
@@ -2313,6 +2323,46 @@ pub struct ScheduledTaskEntry {
     pub enabled: bool,
 }
 
+pub const SUPPORTED_WINDOWS_TWEAK_IDS: &[&str] = &[
+    "show_file_extensions",
+    "show_hidden_files",
+    "compact_explorer",
+    "classic_context_menu",
+    "launch_to_this_pc",
+    "clipboard_history",
+    "taskbar_seconds",
+    "hide_widgets",
+    "taskbar_left_align",
+    "taskbar_end_task",
+    "dark_mode",
+    "disable_game_dvr",
+    "disable_mouse_acceleration",
+    "reduce_suggestions",
+    "disable_copilot",
+    "disable_bing_search",
+    "speed_up_menus",
+    "numlock_on_boot",
+    "disable_hibernation",
+];
+
+pub const SUPPORTED_CLEANUP_ITEM_IDS: &[&str] = &[
+    "user_temp",
+    "system_temp",
+    "prefetch",
+    "thumbnail_cache",
+    "crash_dumps",
+    "windows_update_cache",
+    "recycle_bin",
+];
+
+pub fn is_supported_windows_tweak_id(id: &str) -> bool {
+    SUPPORTED_WINDOWS_TWEAK_IDS.contains(&id)
+}
+
+pub fn is_supported_cleanup_item_id(id: &str) -> bool {
+    SUPPORTED_CLEANUP_ITEM_IDS.contains(&id)
+}
+
 #[tauri::command]
 pub async fn get_windows_tweaks() -> Result<Vec<WindowsTweak>, String> {
     let script = r#"
@@ -2330,12 +2380,30 @@ function Get-DwordValue {
     }
 }
 
+function Get-StringValue {
+    param([string]$Path, [string]$Name, [string]$Default)
+    try {
+        $value = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
+        if ($null -eq $value) { return $Default }
+        return [string]$value
+    } catch {
+        return $Default
+    }
+}
+
 function Test-Key {
     param([string]$Path)
     try { return (Test-Path -Path $Path) } catch { return $false }
 }
 
 $advanced = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+$taskbarDev = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings'
+$personalize = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+$clipboard = 'HKCU:\Software\Microsoft\Clipboard'
+$explorerPolicy = 'HKCU:\Software\Policies\Microsoft\Windows\Explorer'
+$desktop = 'HKCU:\Control Panel\Desktop'
+$mouse = 'HKCU:\Control Panel\Mouse'
+$keyboard = 'HKCU:\Control Panel\Keyboard'
 $contentDelivery = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager'
 $advertising = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo'
 $copilot = 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot'
@@ -2384,6 +2452,26 @@ $items = @(
         restart_required = 'Explorateur'
     },
     [pscustomobject]@{
+        id = 'launch_to_this_pc'
+        name = 'Ouvrir Explorer sur Ce PC'
+        description = 'Ouvre l Explorateur Windows directement sur Ce PC au lieu de Accueil.'
+        category = 'Explorateur'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'LaunchTo' 2) -eq 1)
+        requires_admin = $false
+        restart_required = $null
+    },
+    [pscustomobject]@{
+        id = 'clipboard_history'
+        name = 'Historique du presse-papiers'
+        description = 'Active l historique multi-elements du presse-papiers (Win + V).'
+        category = 'Explorateur'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $clipboard 'EnableClipboardHistory' 0) -eq 1)
+        requires_admin = $false
+        restart_required = $null
+    },
+    [pscustomobject]@{
         id = 'taskbar_seconds'
         name = 'Secondes dans l horloge'
         description = 'Affiche les secondes dans l horloge de la barre des taches.'
@@ -2404,6 +2492,36 @@ $items = @(
         restart_required = 'Explorateur'
     },
     [pscustomobject]@{
+        id = 'taskbar_left_align'
+        name = 'Barre des taches a gauche'
+        description = 'Aligne les icones de la barre des taches a gauche sur Windows 11.'
+        category = 'Interface'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $advanced 'TaskbarAl' 1) -eq 0)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'taskbar_end_task'
+        name = 'Bouton Fin de tache (Barre des taches)'
+        description = 'Ajoute l option Fin de tache au clic droit sur une application dans la barre des taches.'
+        category = 'Interface'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $taskbarDev 'TaskbarEndTask' 0) -eq 1)
+        requires_admin = $false
+        restart_required = $null
+    },
+    [pscustomobject]@{
+        id = 'dark_mode'
+        name = 'Theme sombre Windows & Apps'
+        description = 'Active le mode sombre natif pour le systeme Windows et les applications.'
+        category = 'Apparence'
+        risk = 'Faible'
+        enabled = (((Get-DwordValue $personalize 'AppsUseLightTheme' 1) -eq 0) -and ((Get-DwordValue $personalize 'SystemUsesLightTheme' 1) -eq 0))
+        requires_admin = $false
+        restart_required = $null
+    },
+    [pscustomobject]@{
         id = 'disable_game_dvr'
         name = 'Desactiver Game DVR'
         description = 'Coupe l enregistrement en arriere-plan Xbox Game Bar.'
@@ -2412,6 +2530,16 @@ $items = @(
         enabled = ((Get-DwordValue 'HKCU:\System\GameConfigStore' 'GameDVR_Enabled' 1) -eq 0)
         requires_admin = $false
         restart_required = $null
+    },
+    [pscustomobject]@{
+        id = 'disable_mouse_acceleration'
+        name = 'Desactiver l acceleration souris'
+        description = 'Desactive l amelioration de la precision du pointeur pour un mouvement 1:1.'
+        category = 'Gaming'
+        risk = 'Faible'
+        enabled = (((Get-StringValue $mouse 'MouseSpeed' '1') -eq '0') -and ((Get-StringValue $mouse 'MouseThreshold1' '6') -eq '0') -and ((Get-StringValue $mouse 'MouseThreshold2' '10') -eq '0'))
+        requires_admin = $false
+        restart_required = 'Session'
     },
     [pscustomobject]@{
         id = 'reduce_suggestions'
@@ -2432,6 +2560,36 @@ $items = @(
         enabled = ((Get-DwordValue $copilot 'TurnOffWindowsCopilot' 0) -eq 1)
         requires_admin = $false
         restart_required = 'Session'
+    },
+    [pscustomobject]@{
+        id = 'disable_bing_search'
+        name = 'Desactiver Bing dans le menu Demarrer'
+        description = 'Coupe les resultats web Bing et suggestions en ligne dans la recherche Windows.'
+        category = 'Confidentialite'
+        risk = 'Faible'
+        enabled = ((Get-DwordValue $explorerPolicy 'DisableSearchBoxSuggestions' 0) -eq 1)
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'speed_up_menus'
+        name = 'Accelerer l affichage des menus'
+        description = 'Reduit MenuShowDelay et supprime le delai de demarrage Explorer.'
+        category = 'Performance'
+        risk = 'Faible'
+        enabled = ((Get-StringValue $desktop 'MenuShowDelay' '400') -eq '0')
+        requires_admin = $false
+        restart_required = 'Explorateur'
+    },
+    [pscustomobject]@{
+        id = 'numlock_on_boot'
+        name = 'Activer Verr Num au demarrage'
+        description = 'Active automatiquement le pave numerique a l ouverture de session.'
+        category = 'Systeme'
+        risk = 'Faible'
+        enabled = ((Get-StringValue $keyboard 'InitialKeyboardIndicators' '0') -eq '2')
+        requires_admin = $false
+        restart_required = $null
     },
     [pscustomobject]@{
         id = 'disable_hibernation'
@@ -2462,6 +2620,9 @@ pub async fn apply_windows_tweak(
     id: String,
     enabled: bool,
 ) -> Result<String, String> {
+    if !is_supported_windows_tweak_id(&id) {
+        return Err(format!("Optimisation inconnue : {}", id));
+    }
     let _permit = manager.try_exclusive()?;
     let ps_enabled = if enabled { "$true" } else { "$false" };
     let script_template = match id.as_str() {
@@ -2504,6 +2665,24 @@ if ($enable) {
 Write-Output 'Menu contextuel classique mis a jour.'
 "#
         }
+        "launch_to_this_pc" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name LaunchTo -PropertyType DWord -Value $(if ($enable) { 1 } else { 2 }) -Force | Out-Null
+Write-Output 'Dossier d ouverture Explorer mis a jour.'
+"#
+        }
+        "clipboard_history" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Clipboard'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name EnableClipboardHistory -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
+Write-Output 'Historique du presse-papiers mis a jour.'
+"#
+        }
         "taskbar_seconds" => {
             r#"
 $enable = __ENABLED__
@@ -2522,6 +2701,35 @@ New-ItemProperty -Path $path -Name TaskbarDa -PropertyType DWord -Value $(if ($e
 Write-Output 'Bouton Widgets mis a jour.'
 "#
         }
+        "taskbar_left_align" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name TaskbarAl -PropertyType DWord -Value $(if ($enable) { 0 } else { 1 }) -Force | Out-Null
+Write-Output 'Alignement de la barre des taches mis a jour.'
+"#
+        }
+        "taskbar_end_task" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDeveloperSettings'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name TaskbarEndTask -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
+Write-Output 'Option Fin de tache dans la barre des taches mise a jour.'
+"#
+        }
+        "dark_mode" => {
+            r#"
+$enable = __ENABLED__
+$val = if ($enable) { 0 } else { 1 }
+$path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name AppsUseLightTheme -PropertyType DWord -Value $val -Force | Out-Null
+New-ItemProperty -Path $path -Name SystemUsesLightTheme -PropertyType DWord -Value $val -Force | Out-Null
+Write-Output 'Theme sombre Windows mis a jour.'
+"#
+        }
         "disable_game_dvr" => {
             r#"
 $enable = __ENABLED__
@@ -2531,6 +2739,23 @@ New-Item -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR' -Force 
 New-ItemProperty -Path 'HKCU:\System\GameConfigStore' -Name GameDVR_Enabled -PropertyType DWord -Value $capture -Force | Out-Null
 New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\GameDVR' -Name AppCaptureEnabled -PropertyType DWord -Value $capture -Force | Out-Null
 Write-Output 'Xbox Game DVR mis a jour.'
+"#
+        }
+        "disable_mouse_acceleration" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Control Panel\Mouse'
+New-Item -Path $path -Force | Out-Null
+if ($enable) {
+    New-ItemProperty -Path $path -Name MouseSpeed -PropertyType String -Value '0' -Force | Out-Null
+    New-ItemProperty -Path $path -Name MouseThreshold1 -PropertyType String -Value '0' -Force | Out-Null
+    New-ItemProperty -Path $path -Name MouseThreshold2 -PropertyType String -Value '0' -Force | Out-Null
+} else {
+    New-ItemProperty -Path $path -Name MouseSpeed -PropertyType String -Value '1' -Force | Out-Null
+    New-ItemProperty -Path $path -Name MouseThreshold1 -PropertyType String -Value '6' -Force | Out-Null
+    New-ItemProperty -Path $path -Name MouseThreshold2 -PropertyType String -Value '10' -Force | Out-Null
+}
+Write-Output 'Acceleration souris mise a jour.'
 "#
         }
         "reduce_suggestions" => {
@@ -2568,6 +2793,43 @@ $path = 'HKCU:\Software\Policies\Microsoft\Windows\WindowsCopilot'
 New-Item -Path $path -Force | Out-Null
 New-ItemProperty -Path $path -Name TurnOffWindowsCopilot -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
 Write-Output 'Strategie Copilot mise a jour.'
+"#
+        }
+        "disable_bing_search" => {
+            r#"
+$enable = __ENABLED__
+$path = 'HKCU:\Software\Policies\Microsoft\Windows\Explorer'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name DisableSearchBoxSuggestions -PropertyType DWord -Value $(if ($enable) { 1 } else { 0 }) -Force | Out-Null
+Write-Output 'Recherche web Bing dans le menu Demarrer mise a jour.'
+"#
+        }
+        "speed_up_menus" => {
+            r#"
+$enable = __ENABLED__
+$desktopPath = 'HKCU:\Control Panel\Desktop'
+$serializePath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize'
+New-Item -Path $desktopPath -Force | Out-Null
+New-Item -Path $serializePath -Force | Out-Null
+New-ItemProperty -Path $desktopPath -Name MenuShowDelay -PropertyType String -Value $(if ($enable) { '0' } else { '400' }) -Force | Out-Null
+New-ItemProperty -Path $serializePath -Name StartupDelayInMSec -PropertyType DWord -Value $(if ($enable) { 0 } else { 1000 }) -Force | Out-Null
+Write-Output 'Delai d affichage des menus mis a jour.'
+"#
+        }
+        "numlock_on_boot" => {
+            r#"
+$enable = __ENABLED__
+$val = if ($enable) { '2' } else { '0' }
+$path = 'HKCU:\Control Panel\Keyboard'
+New-Item -Path $path -Force | Out-Null
+New-ItemProperty -Path $path -Name InitialKeyboardIndicators -PropertyType String -Value $val -Force | Out-Null
+try {
+    New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS -ErrorAction SilentlyContinue | Out-Null
+    if (Test-Path 'HKU:\.DEFAULT\Control Panel\Keyboard') {
+        New-ItemProperty -Path 'HKU:\.DEFAULT\Control Panel\Keyboard' -Name InitialKeyboardIndicators -PropertyType String -Value $val -Force -ErrorAction SilentlyContinue | Out-Null
+    }
+} catch {}
+Write-Output 'Etat Verr Num au demarrage mis a jour.'
 "#
         }
         "disable_hibernation" => {
@@ -2677,6 +2939,15 @@ $defs = @(
         selected = $true
     },
     [pscustomobject]@{
+        id = 'crash_dumps'
+        name = 'Rapports de plantage (CrashDumps)'
+        description = 'Fichiers de vidage memoire locaux des applications plantees.'
+        paths = @((Join-Path $env:LOCALAPPDATA 'CrashDumps'))
+        filter = '*.dmp'
+        requires_admin = $false
+        selected = $true
+    },
+    [pscustomobject]@{
         id = 'windows_update_cache'
         name = 'Cache Windows Update'
         description = 'Paquets telecharges par Windows Update.'
@@ -2720,10 +2991,13 @@ pub async fn clean_windows_items(
     manager: State<'_, OperationManager>,
     ids: Vec<String>,
 ) -> Result<String, String> {
-    let _permit = manager.try_exclusive()?;
     if ids.is_empty() {
         return Err("Aucun element de nettoyage selectionne.".to_string());
     }
+    if let Some(unknown) = ids.iter().find(|id| !is_supported_cleanup_item_id(id)) {
+        return Err(format!("Zone de nettoyage inconnue : {}", unknown));
+    }
+    let _permit = manager.try_exclusive()?;
 
     let ids_json = serde_json::to_string(&ids)
         .map_err(|e| format!("Erreur de preparation du nettoyage : {}", e))?;
@@ -2762,6 +3036,10 @@ foreach ($id in @($ids)) {
         }
         'thumbnail_cache' {
             Clear-Children -Paths @((Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Explorer')) -Filter 'thumbcache*.db'
+            $processed++
+        }
+        'crash_dumps' {
+            Clear-Children -Paths @((Join-Path $env:LOCALAPPDATA 'CrashDumps')) -Filter '*.dmp'
             $processed++
         }
         'windows_update_cache' {
@@ -3149,6 +3427,7 @@ mod tests {
 
     #[cfg(windows)]
     #[tokio::test]
+    #[ignore = "live winget host diagnostic; run with cargo test -- --ignored"]
     async fn test_all_winget_commands() {
         println!("=== DIAGNOSTIC: get_installed_software ===");
         match get_installed_software().await {
@@ -3196,5 +3475,33 @@ mod tests {
             }
             Err(e) => println!("ERROR in list_winget_sources: {}", e),
         }
+    }
+
+    #[test]
+    fn supported_windows_tweaks_whitelist_is_valid() {
+        assert_eq!(SUPPORTED_WINDOWS_TWEAK_IDS.len(), 19);
+        assert!(is_supported_windows_tweak_id("dark_mode"));
+        assert!(is_supported_windows_tweak_id("taskbar_left_align"));
+        assert!(is_supported_windows_tweak_id("taskbar_end_task"));
+        assert!(is_supported_windows_tweak_id("clipboard_history"));
+        assert!(is_supported_windows_tweak_id("launch_to_this_pc"));
+        assert!(is_supported_windows_tweak_id("disable_bing_search"));
+        assert!(is_supported_windows_tweak_id("speed_up_menus"));
+        assert!(is_supported_windows_tweak_id("numlock_on_boot"));
+        assert!(is_supported_windows_tweak_id("disable_mouse_acceleration"));
+        assert!(!is_supported_windows_tweak_id("unknown_tweak"));
+    }
+
+    #[test]
+    fn supported_cleanup_items_whitelist_is_valid() {
+        assert_eq!(SUPPORTED_CLEANUP_ITEM_IDS.len(), 7);
+        assert!(is_supported_cleanup_item_id("user_temp"));
+        assert!(is_supported_cleanup_item_id("system_temp"));
+        assert!(is_supported_cleanup_item_id("prefetch"));
+        assert!(is_supported_cleanup_item_id("thumbnail_cache"));
+        assert!(is_supported_cleanup_item_id("crash_dumps"));
+        assert!(is_supported_cleanup_item_id("windows_update_cache"));
+        assert!(is_supported_cleanup_item_id("recycle_bin"));
+        assert!(!is_supported_cleanup_item_id("unknown_cleanup"));
     }
 }

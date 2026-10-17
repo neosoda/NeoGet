@@ -1,0 +1,66 @@
+[
+  {
+    "id": "T-001",
+    "specId": "project",
+    "title": "Define the first deliverable",
+    "status": "done",
+    "priority": "medium",
+    "dependsOn": [],
+    "requirements": [
+      "Planning"
+    ],
+    "acceptance": [
+      "Initial delivery plan reviewed"
+    ],
+    "tests": [
+      "Planning review"
+    ],
+    "modules": [
+      "specs"
+    ]
+  },
+  {
+    "id": "T-002",
+    "specId": "neoget-v2-hardening-and-toolkit",
+    "title": "Hardening, build portability, git hygiene, and offline test isolation",
+    "status": "done",
+    "dependsOn": [
+      "T-001"
+    ],
+    "requirements": [
+      "FR-001 FR-002"
+    ],
+    "acceptance": [
+      "AC-001 AC-002"
+    ],
+    "tests": [
+      "unit"
+    ],
+    "modules": [
+      "src-tauri"
+    ],
+    "priority": "high"
+  },
+  {
+    "id": "T-003",
+    "specId": "neoget-v2-hardening-and-toolkit",
+    "title": "Expand Windows Toolkit with curated tweaks and CrashDumps cleanup",
+    "status": "done",
+    "dependsOn": [
+      "T-002"
+    ],
+    "requirements": [
+      "FR-003"
+    ],
+    "acceptance": [
+      "AC-003"
+    ],
+    "tests": [
+      "unit"
+    ],
+    "modules": [
+      "src"
+    ],
+    "priority": "high"
+  }
+]

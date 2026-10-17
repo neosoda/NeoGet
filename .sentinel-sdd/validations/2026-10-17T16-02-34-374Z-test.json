@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "id": "2026-10-17T16-02-34-374Z-test",
+  "specId": "neoget-v2-hardening-and-toolkit",
+  "taskId": "T-003",
+  "requirements": [
+    "FR-003"
+  ],
+  "acceptance": [
+    "AC-003"
+  ],
+  "check": "test",
+  "command": [
+    "C:\\Program Files\\nodejs\\node.exe",
+    "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+    "run",
+    "test"
+  ],
+  "cwd": "A:\\PROJETS\\NeoGet",
+  "packageManager": {
+    "name": "npm",
+    "resolvedVersion": "11.19.0",
+    "via": "fallback"
+  },
+  "status": "passed",
+  "startedAt": "2026-10-17T16:02:34.066Z",
+  "finishedAt": "2026-10-17T16:02:34.374Z",
+  "durationMs": 308,
+  "exitCode": 0,
+  "output": "\n> neoget@2.2.0 test\n> node --test tests/*.test.mjs\n\n✔ late queue and running events cannot overwrite a completed operation (0.4586ms)\n✔ events for different operations remain separate (0.0985ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 73.8862\n",
+  "projectFingerprint": "9b50ca2213c455411b96c87d69cbe040d812bfc5e261223e2e5afb6ffc9e574b",
+  "provenance": "sentinel-engine",
+  "integrity": {
+    "algorithm": "hmac-sha256",
+    "tag": "c213f4df370934e0a7bd5791c09f1af7723b18b494663574affa438bbcac77a1"
+  }
+}
