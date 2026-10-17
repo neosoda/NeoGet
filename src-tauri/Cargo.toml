@@ -24,3 +24,5 @@ custom-protocol = ["tauri/custom-protocol"]
 [profile.release]
 opt-level = "z"
 lto = true
+panic = "unwind"
+debug = 1

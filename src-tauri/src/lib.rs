@@ -27,6 +27,32 @@ pub fn run() {
         }
     }
 
+    // Capture toute panique Rust dans les logs pour diagnostic immédiat
+    let hook_log_path = log_path.clone();
+    std::panic::set_hook(Box::new(move |info| {
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "panique inconnue".to_string()
+        };
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "emplacement inconnu".to_string());
+        let msg = format!("[PANIC] {} à {}", payload, location);
+        eprintln!("{}", msg);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(hook_log_path.join("NeoGet.log"))
+        {
+            use std::io::Write;
+            let _ = writeln!(f, "[{}][neoget][ERROR] {}", chrono::Local::now().format("%Y-%m-%d][%H:%M:%S"), msg);
+        }
+    }));
+
     tauri::Builder::default()
         .manage(operations::OperationManager::new())
         .plugin(
@@ -37,7 +63,6 @@ pub fn run() {
                         path: log_path,
                         file_name: None,
                     }),
-                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
                 ])
                 .build(),
         )

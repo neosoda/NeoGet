@@ -452,6 +452,7 @@ async fn run_command_streaming_with_timeout(
     cmd.creation_flags(CREATE_NO_WINDOW);
 
     cmd.kill_on_drop(true);
+    cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 
