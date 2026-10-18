@@ -418,9 +418,11 @@ mod tests {
     async fn rapid_duplicate_requests_execute_once_and_recover_after_error() {
         let manager = OperationManager::new();
         let runs = Arc::new(AtomicUsize::new(0));
+        let gate = Arc::new(tokio::sync::Notify::new());
         let mut ids = Vec::new();
         for _ in 0..20 {
             let runs = runs.clone();
+            let gate = gate.clone();
             let record = manager
                 .enqueue(
                     "upgrade",
@@ -428,6 +430,7 @@ mod tests {
                     "Firefox".into(),
                     |_| {},
                     move || async move {
+                        gate.notified().await;
                         runs.fetch_add(1, Ordering::SeqCst);
                         Err("not found".into())
                     },
@@ -436,6 +439,7 @@ mod tests {
             ids.push(record.id);
         }
         assert!(ids.iter().all(|id| id == &ids[0]));
+        gate.notify_one();
         wait_for(&manager, 1).await;
         assert_eq!(runs.load(Ordering::SeqCst), 1);
         assert_eq!(manager.list()[0].status, OperationStatus::Failed);
@@ -516,7 +520,7 @@ mod tests {
     }
 
     async fn wait_for(manager: &OperationManager, count: usize) {
-        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
             loop {
                 if manager
                     .list()
@@ -532,7 +536,7 @@ mod tests {
                 {
                     break;
                 }
-                tokio::task::yield_now().await;
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
             }
         })
         .await

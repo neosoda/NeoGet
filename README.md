@@ -1,14 +1,14 @@
 <div align="center">
 
-# ðŸš€ NeoGet
+# 🚀 NeoGet
 
-### *Le Cockpit Windows Ultime pour WinGet, le Nettoyage et l'Optimisation SystÃ¨me*
+### *Le gestionnaire WinGet et toolkit d'optimisation pour Windows*
 
-NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en temps rÃ©el et un toolkit d'optimisation Windows au sein d'une application desktop **Tauri v2** moderne, ultra-rapide et 100 % locale.
+NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic système en temps réel et un ensemble d'optimisations Windows au sein d'une application desktop **Tauri v2** rapide, moderne et 100 % locale.
 
 <br />
 
-[![Release](https://img.shields.io/badge/Release-v2.3.2-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.2-x64.exe)
+[![Release](https://img.shields.io/badge/Release-v2.3.3-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.3-x64.exe)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111)](https://react.dev)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-24C8DB?style=for-the-badge&logo=tauri&logoColor=fff)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-backend-000000?style=for-the-badge&logo=rust&logoColor=fff)](https://www.rust-lang.org)
@@ -19,13 +19,13 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en 
 <br />
 
 <p>
-  <a href="releases/NeoGet-Setup-2.3.2-x64.exe"><strong>âš¡ TÃ©lÃ©charger l'installateur Windows (.exe)</strong></a>
-  Â·
-  <a href="docs/SETUP.md"><strong>ðŸ“˜ Guide Dev</strong></a>
-  Â·
-  <a href="docs/ARCHITECTURE.md"><strong>ðŸ—ï¸ Architecture</strong></a>
-  Â·
-  <a href="docs/CHANGELOG.md"><strong>ðŸ“ Changelog</strong></a>
+  <a href="releases/NeoGet-Setup-2.3.3-x64.exe"><strong>⚡ Télécharger l'installateur Windows (.exe)</strong></a>
+  ·
+  <a href="docs/SETUP.md"><strong>📖 Guide Dev</strong></a>
+  ·
+  <a href="docs/ARCHITECTURE.md"><strong>🏗️ Architecture</strong></a>
+  ·
+  <a href="docs/CHANGELOG.md"><strong>📋 Changelog</strong></a>
 </p>
 
 <br />
@@ -36,160 +36,134 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en 
 
 ---
 
-## âœ¨ Pourquoi NeoGet ?
+## ✨ Fonctionnalités clés
 
-Configurer ou maintenir un poste Windows propre exige gÃ©nÃ©ralement l'utilisation conjointe de multiples terminaux, de scripts PowerShell Ã©pars, du planificateur de tÃ¢ches et du registre Windows. 
+Configurer ou maintenir un poste Windows propre nécessite souvent plusieurs outils distincts : terminaux, scripts PowerShell, planificateur de tâches et éditeur de registre.
 
-**NeoGet unifie l'intÃ©gralitÃ© de ces flux** au sein d'un tableau de bord unique, Ã©lÃ©gant et sÃ©curisÃ© sans aucune tÃ©lÃ©mÃ©trie ni dÃ©pendance cloud.
+**NeoGet réunit ces flux** dans une interface sobre, rapide et sécurisée, sans télémétrie ni dépendance cloud.
 
-| Cas d'usage | Ce que NeoGet apporte |
+| Domaine | Fonctionnalité |
 | --- | --- |
-| **ðŸ“¦ Installation initiale** | Catalogue *Starter Pack* structurÃ© par mÃ©tiers, panier multi-sÃ©lection et dÃ©ploiement groupÃ©. |
-| **ðŸ” Recherche universelle** | Exploration directe du catalogue officiel WinGet avec ajout en un clic au panier d'installation. |
-| **ðŸ”„ Maintenance applicative** | Scanner de versions obsolÃ¨tes et ajouter les mises Ã  jour Ã  une file d'opÃ©rations suivie par le backend. |
-| **ðŸ§¹ Nettoyage systÃ¨me** | Analyse et purge ciblÃ©e des caches temporaires, prefetch, miniatures et rÃ©sidus Windows Update. |
-| **âš¡ Optimisation & Tweaks** | Toggles instantanÃ©s : menu contextuel classique, masquage des Widgets/Copilot, Game DVR, hibernation et extensions. |
-| **ðŸš€ ContrÃ´le du dÃ©marrage** | Audit et activation/dÃ©sactivation des programmes au dÃ©marrage et tÃ¢ches planifiÃ©es non-Microsoft. |
-| **ðŸ©º Doctor WinGet** | Diagnostic RAM, Disque, OS & rÃ©initialisation des rÃ©pertoires/sources WinGet corrompus. |
+| **📦 Installation initiale** | Catalogue *Starter Pack* catégorisé, panier multi-sélection et installation groupée séquentielle. |
+| **🔍 Recherche universelle** | Exploration directe du catalogue officiel WinGet avec ajout au panier en un clic. |
+| **🔄 Maintenance applicative** | Analyse des versions obsolètes et ajout des mises à jour à une file d'attente orchestrée par le backend. |
+| **🧹 Nettoyage système** | Analyse et purge ciblée des caches temporaires, Prefetch, miniatures et résidus Windows Update. |
+| **⚡ Optimisations Windows** | Ajustements rapides réversibles : menu contextuel classique, masquage Copilot/Widgets, Game DVR, etc. |
+| **🚀 Contrôle du démarrage** | Audit et gestion des programmes au démarrage et tâches planifiées non-Microsoft. |
+| **🩺 System Doctor** | Diagnostic RAM, disque, état OS et profils de réparation des sources WinGet. |
 
 ---
 
-## ðŸŽ¨ Vues Principales & FonctionnalitÃ©s
+## 🎨 Vues principales
 
 ### 1. Starter Pack & Recherche WinGet
-- **SÃ©lection rapide** : Outils indispensables catÃ©gorisÃ©s (Navigateurs, Dev, MultimÃ©dia, Bases de donnÃ©es, ProductivitÃ©).
-- **Panier dynamique** : PrÃ©paration d'une file d'attente d'installation avec suivi de progression en overlay minimisable.
-- **Import / Export JSON** : Sauvegarde et restauration instantanÃ©e de configurations logicielles.
-- **File d'opÃ©rations fiable** : Installations, mises Ã  jour et dÃ©sinstallations sont mises en file par le backend. Une mÃªme action sur un mÃªme paquet n'est exÃ©cutÃ©e qu'une fois Ã  la fois.
+- **Sélection rapide** : Outils indispensables catégorisés (Navigateurs, Développement, Multimédia, Bases de données, Productivité).
+- **Panier dynamique** : Préparation d'une file d'attente d'installation avec suivi de progression en overlay minimisable.
+- **Import / Export JSON** : Sauvegarde et restauration de configurations logicielles.
+- **File d'opérations fiable** : Les installations, mises à jour et désinstallations sont gérées séquentiellement par le backend avec déduplication stricte.
 
-### 2. Centre de Mises Ã  jour & Inventaire
-- **Inventaire local complet** : Listing et filtrage rapide parmi toutes les applications installÃ©es sur la machine hÃ´te.
-- **Upgrades intelligents** : Mises Ã  jour individuelles ou groupÃ©es, avec dÃ©tection des paquets sans version connue et mode forcÃ© pour la maintenance complÃ¨te.
-- **DÃ©sinstallation sÃ©curisÃ©e** : BoÃ®te de dialogue de confirmation obligatoire pour Ã©viter toute suppression involontaire.
-
-### Suivi des opÃ©rations
-- **Ã‰tat unique cÃ´tÃ© backend** : Chaque opÃ©ration passe par `queued`, `running`, `success` ou `failed` avec un identifiant, des horodatages et le dÃ©tail d'erreur utile.
-- **ExÃ©cution sÃ©quentielle** : WinGet reÃ§oit une opÃ©ration Ã  la fois afin d'Ã©viter les conflits entre installations, mises Ã  jour et dÃ©sinstallations.
-- **Interface synchronisÃ©e** : L'overlay lit l'Ã©tat initial, Ã©coute les Ã©vÃ©nements Tauri et rafraÃ®chit l'Ã©tat pendant qu'une opÃ©ration est active. Il reste cohÃ©rent aprÃ¨s une rÃ©ponse tardive ou un Ã©vÃ©nement manquÃ©.
+### 2. Centre de mises à jour & Logiciels installés
+- **Inventaire local complet** : Liste et filtrage rapide de toutes les applications installées sur la machine.
+- **Mises à jour intelligentes** : Mises à jour individuelles ou par lot, avec détection des paquets inconnus et mode forcé.
+- **Désinstallation sécurisée** : Confirmation explicite pour éviter toute suppression involontaire.
 
 ### 3. Toolkit Windows
-- **Explorateur** : Afficher extensions, fichiers cachÃ©s, vue compacte, menu clic-droit classique Windows 10/11.
-- **ConfidentialitÃ© & Gaming** : Masquer Widgets, dÃ©sactiver Game DVR, dÃ©sactiver Windows Copilot, rÃ©duire les suggestions.
-- **Nettoyeur de caches** : Purge sÃ©curisÃ©e du dossier Temp, Prefetch, Cache Windows Update et miniatures Explorer.
-- **Gestionnaire AppX & DÃ©marrage** : DÃ©sinstallation propre des paquets UWP/AppX amovibles et contrÃ´le du dÃ©marrage systÃ¨me.
+- **Explorateur** : Afficher les extensions de fichiers, éléments cachés, vue compacte et menu contextuel classique.
+- **Confidentialité & Performances** : Masquer les Widgets, désactiver Game DVR, désactiver Windows Copilot, limiter les suggestions.
+- **Nettoyeur de caches** : Purge sécurisée du dossier Temp, Prefetch, cache Windows Update et miniatures Explorer.
+- **Gestionnaire AppX & Démarrage** : Désinstallation des paquets UWP/AppX amovibles et contrôle des éléments au démarrage.
 
-### 4. System Doctor & Gestion des Sources
-- **Capteurs systÃ¨me** : Visualisation en temps rÃ©el de la consommation mÃ©moire RAM et de l'espace disque libre.
-- **Restauration WinGet** : Profils de maintenance intÃ©grÃ©s. Les profils rapide et complet mettent Ã  jour les sources, analysent les mises Ã  jour puis les ajoutent Ã  la file. Le profil de rÃ©paration rÃ©initialise les sources WinGet.
+### 4. System Doctor & Sources
+- **Capteurs système** : Visualisation en temps réel de la consommation mémoire RAM et de l'espace disque.
+- **Maintenance WinGet** : Mise à jour des sources, réinitialisation forcée, nettoyage de cache et réparation.
 
 ---
 
-## ðŸš€ Prise en main rapide
+## 🚀 Prise en main
 
-### 1. Installer NeoGet
-TÃ©lÃ©chargez l'installateur Windows puis exÃ©cutez-le :
+### 1. Téléchargement et installation
 
-```powershell
-.\releases\NeoGet-Setup-2.3.1-x64.exe
-```
+Téléchargez l'installateur Windows officiel :
 
-Le binaire portable est aussi disponible dans `releases\NeoGet-2.3.1-x64.exe`.
+- **Installateur NSIS** : [`releases/NeoGet-Setup-2.3.3-x64.exe`](releases/NeoGet-Setup-2.3.3-x64.exe)
+- **Version portable** : [`releases/NeoGet-2.3.3-x64.exe`](releases/NeoGet-2.3.3-x64.exe)
 
-> **Note** : Pour appliquer les optimisations systÃ¨me avancÃ©es du Toolkit Windows, exÃ©cutez NeoGet avec les privilÃ¨ges administrateur (`Clic-droit -> ExÃ©cuter en tant qu'administrateur`).
+> **Note** : Pour appliquer les optimisations système avancées du Toolkit Windows, lancez NeoGet avec les privilèges administrateur (`Clic droit -> Exécuter en tant qu'administrateur`).
 
-### 2. Environnement de DÃ©veloppement
+### 2. Développement local
 
-#### PrÃ©requis
-- Windows 10 ou 11
-- WinGet fonctionnel
-- Node.js (v18+)
-- Rust & Cargo (v1.75+)
+#### Prérequis
+- Windows 10 ou Windows 11
+- WinGet installé et fonctionnel
+- Node.js (v20 ou v22 LTS)
+- Rust & Cargo (stable)
 
 #### Installation & Lancement
 ```powershell
-# 1. Cloner le dÃ©pÃ´t
+# 1. Cloner le dépôt
 git clone https://github.com/neosoda/NeoGet.git
 cd NeoGet
 
-# 2. Installer les dÃ©pendances JavaScript
+# 2. Installer les dépendances
 npm install
 
-# 3. Lancer le mode dÃ©veloppement desktop avec Hot-Reload
+# 3. Lancer en mode développement avec Hot-Reload
 npm run tauri:dev
 ```
 
 #### Compilation Release
 ```powershell
-# Compiler le binaire optimisÃ© Tauri v2
+# Compiler le frontend et l'application Tauri v2
 npm run tauri:build
 ```
 
-Les chemins de sortie suivent la configuration Cargo du projet. Consultez `.cargo\config.toml` si le dossier `target` a Ã©tÃ© dÃ©placÃ©.
-
 ---
 
-## ðŸ—ï¸ Architecture & Stack Technique
+## 🏗️ Architecture & Stack technique
 
 ```text
 NeoGet/
-â”œâ”€â”€ src/                                # Frontend React 19 + TypeScript
-â”‚   â”œâ”€â”€ App.tsx                         # Layout shell & gestionnaires globaux
-â”‚   â”œâ”€â”€ components/                     # Composants UI (Grid, Toolkit, Doctor, Cart, Palette)
-â”‚   â”œâ”€â”€ hooks/                          # Hooks d'Ã©tat (Panier, ThÃ¨me, Status, Installation)
-â”‚   â””â”€â”€ index.css                       # Design System Tailwind CSS & Tokens HSL
-â”œâ”€â”€ src-tauri/                          # Backend Rust & Tauri v2
-â”‚   â”œâ”€â”€ src/commands.rs                 # Invocations systÃ¨me, WinGet & PowerShell
-â”‚   â”œâ”€â”€ src/operations.rs               # File, dÃ©duplication et Ã©tat des opÃ©rations WinGet
-â”‚   â”œâ”€â”€ src/lib.rs                      # Enregistrement des IPC Handlers & Logger
-â”‚   â””â”€â”€ tauri.conf.json                 # Configuration Tauri v2 & CSP
-â”œâ”€â”€ releases/                           # Artifacts Release vÃ©rifiÃ©s
-â”‚   â”œâ”€â”€ NeoGet-2.3.1-x64.exe            # Binaire portable
-â”‚   â”œâ”€â”€ NeoGet-Setup-2.3.1-x64.exe      # Installateur NSIS
-â”‚   â””â”€â”€ SHA256SUMS.txt                  # Empreintes SHA-256
-â”œâ”€â”€ software.json                       # Catalogue Starter Pack par dÃ©faut
-â””â”€â”€ package.json                        # Configuration NPM & scripts de build
+├── src/                                # Frontend React 19 + TypeScript
+│   ├── App.tsx                         # Shell principal et navigation
+│   ├── components/                     # Vues UI (Grid, Toolkit, Doctor, Cart, Palette, Settings)
+│   ├── hooks/                          # Hooks d'état (Panier, Thème, Statut, Installation)
+│   ├── operationState.ts               # Réconciliation d'état de la file d'opérations
+│   └── index.css                       # Styles Tailwind CSS et design system
+├── src-tauri/                          # Backend Rust & Tauri v2
+│   ├── src/commands.rs                 # Commandes IPC, exécution WinGet et PowerShell
+│   ├── src/operations.rs               # Orchestration, déduplication et file d'attente séquentielle
+│   ├── src/lib.rs                      # Enregistrement des commandes et journalisation
+│   └── tauri.conf.json                 # Configuration Tauri v2
+├── releases/                           # Binaires exécutables et empreintes SHA-256
+│   ├── NeoGet-2.3.3-x64.exe
+│   ├── NeoGet-Setup-2.3.3-x64.exe
+│   └── SHA256SUMS.txt
+├── software.json                       # Catalogue Starter Pack par défaut
+└── package.json                        # Scripts et dépendances NPM
 ```
 
-| Couche | Technologie |
-| --- | --- |
-| **Interface UI** | React 19, TypeScript, Tailwind CSS, Framer Motion, Lucide Icons |
-| **Desktop Runtime** | Tauri 2.0 (Rust) |
-| **Moteur SystÃ¨me** | Rust (Tokio async), PowerShell, WinGet CLI |
-| **Build System** | Vite, Cargo |
+---
+
+## 🛡️ Sécurité & Confidentialité
+
+- **100 % Local** : Aucune donnée personnelle, statistique ou télémétrie n'est collectée ou transmise.
+- **IPC typée et sécurisée** : Toutes les commandes système passent par les contrats d'interface de Tauri v2.
+- **Traçabilité locale** : Les opérations sont tracées avec horodatage et code de retour dans `%LOCALAPPDATA%\NeoGet\logs\NeoGet.log`.
+- **Contrôle des privilèges** : Les actions nécessitant une élévation de privilèges sont clairement signalées.
 
 ---
 
-## ðŸ›¡ï¸ SÃ©curitÃ© & ConfidentialitÃ©
-
-- **100 % Local** : Aucune donnÃ©e personnelle, statistique ou tÃ©lÃ©mÃ©trie n'est envoyÃ©e vers un serveur tiers.
-- **Transparence IPC** : Toutes les commandes exÃ©cutÃ©es passent par les API typÃ©es et sÃ©curisÃ©es de Tauri v2.
-- **TraÃ§abilitÃ©** : Les opÃ©rations enregistrent leur type, paquet, commande, durÃ©e et erreur Ã©ventuelle dans les logs locaux de NeoGet.
-- **SÃ©curitÃ© UAC** : Les opÃ©rations nÃ©cessitant une Ã©lÃ©vation de privilÃ¨ges sont clairement signalÃ©es dans l'interface et verrouillÃ©es si les droits sont insuffisants.
-
----
-
-## âœ… VÃ©rification avant publication
+## 🧪 Tests et qualité
 
 ```powershell
-cargo test --manifest-path src-tauri\Cargo.toml
+cargo test --manifest-path src-tauri\Cargo.toml --lib
 npm test
 npm run build
-npm run tauri:build
-Get-FileHash .\releases\NeoGet-2.3.1-x64.exe -Algorithm SHA256
 ```
 
 ---
 
-## ðŸ“– Documentation ComplÃ¨te
-
-- ðŸ—ï¸ [Architecture Technique](docs/ARCHITECTURE.md)
-- ðŸ’» [Guide de Configuration Dev](docs/SETUP.md)
-- ðŸŽ¨ [Design System & UI Tokens](docs/DESIGN_SYSTEM.md)
-- ðŸ“ [Journal des Modifications (Changelog)](docs/CHANGELOG.md)
-
----
-
-## ðŸ“„ Licence
+## 📄 Licence
 
 Ce projet est sous licence [MIT](LICENSE).
 
@@ -197,7 +171,6 @@ Ce projet est sous licence [MIT](LICENSE).
 
 <div align="center">
 
-*Fait avec â¤ï¸ avec React, Rust, Tauri et WinGet.*
+*Conçu avec React, Rust, Tauri et WinGet.*
 
 </div>
-

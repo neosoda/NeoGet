@@ -51,7 +51,7 @@ const previewTweaks: WindowsTweak[] = [
   {
     id: 'show_file_extensions',
     name: 'Afficher les extensions',
-    description: 'Rend visibles les extensions de fichiers dans l Explorateur.',
+    description: 'Rend visibles les extensions de fichiers dans l’Explorateur.',
     category: 'Explorateur',
     risk: 'Faible',
     enabled: true,
@@ -63,7 +63,7 @@ const previewTweaks: WindowsTweak[] = [
     name: 'Menu contextuel classique',
     description: 'Restaure le menu clic droit complet de Windows 10 sur Windows 11.',
     category: 'Explorateur',
-    risk: 'Modere',
+    risk: 'Modéré',
     enabled: false,
     requires_admin: false,
     restart_required: 'Explorateur'
@@ -71,7 +71,7 @@ const previewTweaks: WindowsTweak[] = [
   {
     id: 'launch_to_this_pc',
     name: 'Ouvrir Explorer sur Ce PC',
-    description: 'Ouvre l Explorateur Windows directement sur Ce PC au lieu de Accueil.',
+    description: 'Ouvre l’Explorateur Windows directement sur Ce PC au lieu d’Accueil.',
     category: 'Explorateur',
     risk: 'Faible',
     enabled: true,
@@ -81,7 +81,7 @@ const previewTweaks: WindowsTweak[] = [
   {
     id: 'clipboard_history',
     name: 'Historique du presse-papiers',
-    description: 'Active l historique multi-elements du presse-papiers (Win + V).',
+    description: 'Active l’historique multi-éléments du presse-papiers (Win + V).',
     category: 'Explorateur',
     risk: 'Faible',
     enabled: true,
@@ -90,8 +90,8 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'taskbar_left_align',
-    name: 'Barre des taches a gauche',
-    description: 'Aligne les icones de la barre des taches a gauche sur Windows 11.',
+    name: 'Barre des tâches à gauche',
+    description: 'Aligne les icônes de la barre des tâches à gauche sur Windows 11.',
     category: 'Interface',
     risk: 'Faible',
     enabled: false,
@@ -100,8 +100,8 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'taskbar_end_task',
-    name: 'Bouton Fin de tache (Barre des taches)',
-    description: 'Ajoute l option Fin de tache au clic droit sur une application dans la barre des taches.',
+    name: 'Bouton Fin de tâche (Barre des tâches)',
+    description: 'Ajoute l’option Fin de tâche au clic droit sur une application dans la barre des tâches.',
     category: 'Interface',
     risk: 'Faible',
     enabled: true,
@@ -110,8 +110,8 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'dark_mode',
-    name: 'Theme sombre Windows & Apps',
-    description: 'Active le mode sombre natif pour le systeme Windows et les applications.',
+    name: 'Thème sombre Windows & Apps',
+    description: 'Active le mode sombre natif pour le système Windows et les applications.',
     category: 'Apparence',
     risk: 'Faible',
     enabled: true,
@@ -120,8 +120,8 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'disable_game_dvr',
-    name: 'Desactiver Game DVR',
-    description: 'Coupe l enregistrement en arriere-plan Xbox Game Bar.',
+    name: 'Désactiver Game DVR',
+    description: 'Coupe l’enregistrement en arrière-plan Xbox Game Bar.',
     category: 'Gaming',
     risk: 'Faible',
     enabled: false,
@@ -130,8 +130,8 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'disable_mouse_acceleration',
-    name: 'Desactiver l acceleration souris',
-    description: 'Desactive l amelioration de la precision du pointeur pour un mouvement 1:1.',
+    name: 'Désactiver l’accélération souris',
+    description: 'Désactive l’amélioration de la précision du pointeur pour un mouvement 1:1.',
     category: 'Gaming',
     risk: 'Faible',
     enabled: false,
@@ -140,9 +140,9 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'disable_bing_search',
-    name: 'Desactiver Bing dans le menu Demarrer',
-    description: 'Coupe les resultats web Bing et suggestions en ligne dans la recherche Windows.',
-    category: 'Confidentialite',
+    name: 'Désactiver Bing dans le menu Démarrer',
+    description: 'Coupe les résultats web Bing et suggestions en ligne dans la recherche Windows.',
+    category: 'Confidentialité',
     risk: 'Faible',
     enabled: true,
     requires_admin: false,
@@ -150,8 +150,8 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'speed_up_menus',
-    name: 'Accelerer l affichage des menus',
-    description: 'Reduit MenuShowDelay et supprime le delai de demarrage Explorer.',
+    name: 'Accélérer l’affichage des menus',
+    description: 'Réduit MenuShowDelay et supprime le délai de démarrage Explorer.',
     category: 'Performance',
     risk: 'Faible',
     enabled: false,
@@ -160,9 +160,9 @@ const previewTweaks: WindowsTweak[] = [
   },
   {
     id: 'numlock_on_boot',
-    name: 'Activer Verr Num au demarrage',
-    description: 'Active automatiquement le pave numerique a l ouverture de session.',
-    category: 'Systeme',
+    name: 'Activer Verr Num au démarrage',
+    description: 'Active automatiquement le pavé numérique à l’ouverture de session.',
+    category: 'Système',
     risk: 'Faible',
     enabled: true,
     requires_admin: false,
@@ -183,7 +183,7 @@ const previewCleanupItems: CleanupItem[] = [
   {
     id: 'thumbnail_cache',
     name: 'Miniatures Explorer',
-    description: 'Base locale des miniatures d images et videos.',
+    description: 'Base locale des miniatures d’images et vidéos.',
     size_bytes: 73400320,
     item_count: 12,
     requires_admin: false,
@@ -192,7 +192,7 @@ const previewCleanupItems: CleanupItem[] = [
   {
     id: 'crash_dumps',
     name: 'Rapports de plantage (CrashDumps)',
-    description: 'Fichiers de vidage memoire locaux des applications plantees.',
+    description: 'Fichiers de vidage mémoire locaux des applications plantées.',
     size_bytes: 184549376,
     item_count: 8,
     requires_admin: false,
@@ -201,7 +201,7 @@ const previewCleanupItems: CleanupItem[] = [
   {
     id: 'windows_update_cache',
     name: 'Cache Windows Update',
-    description: 'Paquets telecharges par Windows Update.',
+    description: 'Paquets téléchargés par Windows Update.',
     size_bytes: 1291845632,
     item_count: 386,
     requires_admin: true,
@@ -966,6 +966,18 @@ export default function WindowsToolkitView({ isAdmin }: WindowsToolkitViewProps)
     tasks: scheduledTasks.length
   }[activeTab]
 
+  const activeLabel = {
+    tweaks: 'optimisations actives',
+    cleanup: 'zones analysées',
+    apps: 'applications installées',
+    startup: 'programmes au démarrage',
+    tasks: 'tâches planifiées'
+  }[activeTab]
+
+  const totalCleanupBytes = cleanupItems.reduce((acc, item) => acc + (item.selected ? item.size_bytes : 0), 0)
+  const enabledTweaksCount = tweaks.filter(item => item.enabled).length
+  const totalTweaksCount = tweaks.length || previewTweaks.length
+
   return (
     <div className="space-y-5 pb-24">
       <div className="surface-strong p-5">
@@ -995,15 +1007,15 @@ export default function WindowsToolkitView({ isAdmin }: WindowsToolkitViewProps)
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-lg border border-slate-200/70 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/[0.04]">
             <p className="text-2xl font-extrabold text-slate-950 dark:text-white">{activeCount}</p>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">éléments</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{activeLabel}</p>
           </div>
           <div className="rounded-lg border border-accent/20 bg-accent/10 p-3">
-            <p className="text-2xl font-extrabold text-teal-700 dark:text-accent">Winhance</p>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-teal-700/80 dark:text-accent/80">customisation</p>
+            <p className="text-2xl font-extrabold text-teal-700 dark:text-accent">{formatBytes(totalCleanupBytes)}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-teal-700/80 dark:text-accent/80">nettoyage prêt</p>
           </div>
           <div className="rounded-lg border border-primary/20 bg-primary/10 p-3">
-            <p className="text-2xl font-extrabold text-sky-700 dark:text-primary">Optimizer</p>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-sky-700/80 dark:text-primary/80">maintenance</p>
+            <p className="text-2xl font-extrabold text-sky-700 dark:text-primary">{enabledTweaksCount} / {totalTweaksCount}</p>
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-sky-700/80 dark:text-primary/80">optimisations appliquées</p>
           </div>
         </div>
       </div>

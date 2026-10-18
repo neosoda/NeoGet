@@ -165,7 +165,7 @@ function Sidebar({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Session</p>
-              <p className="mt-1 text-sm font-extrabold text-white">Neo PC</p>
+              <p className="mt-1 text-sm font-extrabold text-white">Poste local</p>
             </div>
             <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${
               isAdmin ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'

@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Code2, Database, Folder, RefreshCw, Settings, ShieldCheck, SlidersHorizontal, Wrench } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { CartItem, UpgradeResult, WinGetSource } from '../types'
@@ -22,7 +22,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
     try {
       await action()
     } catch (error) {
-      showToast(`${label} a Ã©chouÃ© : ${error}`, 'error')
+      showToast(`${label} a échoué : ${error}`, 'error')
     } finally {
       busyRef.current = false
       setBusyAction(null)
@@ -47,7 +47,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
     try {
       if (profile === 'repair-sources') {
         await invoke('run_winget_maintenance_profile', { profile })
-        showToast('Sources WinGet rÃ©parÃ©es.', 'success')
+        showToast('Sources WinGet réparées.', 'success')
       } else {
         await invoke('update_winget_sources')
         sourcesUpdated = true
@@ -55,15 +55,15 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
         const items = available.map(item => ({ id: item.id, name: item.name }))
         if (items.length > 0) {
           await onUpgradeBatch(items, profile === 'full-maintenance')
-          showToast(`${items.length} mise(s) Ã  jour ajoutÃ©e(s) Ã  la file.`, 'info')
+          showToast(`${items.length} mise(s) à jour ajoutée(s) à la file.`, 'info')
         } else {
-          showToast('Tous les logiciels sont dÃ©jÃ  Ã  jour.', 'success')
+          showToast('Tous les logiciels sont déjà à jour.', 'success')
         }
       }
       await fetchSources()
     } catch (e) {
       console.error(e)
-      showToast(`${sourcesUpdated ? 'Sources mises Ã  jour, mais la suite a Ã©chouÃ©' : 'Maintenance Ã©chouÃ©e'} : ${e}`, 'error')
+      showToast(`${sourcesUpdated ? 'Sources mises à jour, mais la suite a échoué' : 'Maintenance échouée'} : ${e}`, 'error')
       if (sourcesUpdated) await fetchSources()
     }
   }
@@ -75,7 +75,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
       await fetchSources()
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec update sources : ${e}`, 'error')
+      showToast(`Échec de la mise à jour des sources : ${e}`, 'error')
     }
   }
 
@@ -88,7 +88,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
       await fetchSources()
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec suppression source : ${e}`, 'error')
+      showToast(`Échec de la suppression de la source : ${e}`, 'error')
     }
   }
 
@@ -99,18 +99,18 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
       await fetchSources()
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec reset sources : ${e}`, 'error')
+      showToast(`Échec de la réinitialisation des sources : ${e}`, 'error')
     }
   }
 
   const restoreDefaultSources = async () => {
     try {
       await invoke('run_winget_maintenance_profile', { profile: 'repair-sources' })
-      showToast('Sources WinGet restaurÃ©es et mises Ã  jour.', 'success')
+      showToast('Sources WinGet restaurées et mises à jour.', 'success')
       await fetchSources()
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec restauration sources : ${e}`, 'error')
+      showToast(`Échec de la restauration des sources : ${e}`, 'error')
     }
   }
 
@@ -120,7 +120,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
       showToast(msg, 'success')
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec nettoyage cache : ${e}`, 'error')
+      showToast(`Échec du nettoyage du cache : ${e}`, 'error')
     }
   }
 
@@ -130,7 +130,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
       showToast(msg, 'info')
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec ouverture paramÃ¨tres : ${e}`, 'error')
+      showToast(`Échec de l'ouverture des paramètres : ${e}`, 'error')
     }
   }
 
@@ -159,14 +159,14 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
     localStorage.setItem('neoget-install-mode', installMode)
     localStorage.setItem('neoget-winget-include-unknown', String(includeUnknown))
     localStorage.setItem('neoget-winget-force-upgrade', String(forceUpgrade))
-    showToast('ParamÃ¨tres gÃ©nÃ©raux enregistrÃ©s.', 'success')
+    showToast('Paramètres généraux enregistrés.', 'success')
   }
 
   const resetCatalog = () => {
     setCustomCatalogUrl('')
     localStorage.removeItem('neoget-custom-catalog-url')
     localStorage.removeItem('neoget-custom-software')
-    showToast('Catalogue rÃ©initialisÃ©.', 'info')
+    showToast('Catalogue réinitialisé.', 'info')
     window.dispatchEvent(new Event('catalog-updated'))
   }
 
@@ -178,7 +178,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
     }
 
     try {
-      showToast('TÃ©lÃ©chargement du catalogue externe...', 'info')
+      showToast('Téléchargement du catalogue externe...', 'info')
       const response = await fetch(customCatalogUrl)
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
       const data = await response.json()
@@ -200,14 +200,14 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
 
         localStorage.setItem('neoget-custom-catalog-url', customCatalogUrl)
         localStorage.setItem('neoget-custom-software', JSON.stringify(list))
-        showToast('Nouveau catalogue importÃ© et synchronisÃ©.', 'success')
+        showToast('Nouveau catalogue importé et synchronisé.', 'success')
         window.dispatchEvent(new Event('catalog-updated'))
       } else {
-        throw new Error("Structure JSON invalide. 'categories' absent ou incorrect.")
+        throw new Error("Structure JSON invalide : la clé 'categories' est absente ou incorrecte.")
       }
     } catch (e) {
       console.error(e)
-      showToast(`Ã‰chec du chargement : ${e}`, 'error')
+      showToast(`Échec du chargement : ${e}`, 'error')
     }
   }
 
@@ -216,9 +216,9 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
       <div className="surface-strong p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="page-title">Sources et paramÃ¨tres</h2>
+            <h2 className="page-title">Sources et paramètres</h2>
             <p className="page-copy mt-2">
-              Ajustez le mode dâ€™installation, le chemin par dÃ©faut et les catalogues partagÃ©s de votre environnement.
+              Ajustez le mode d'installation, le chemin par défaut et les catalogues de logiciels.
             </p>
           </div>
           <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-accent/20 bg-accent/10 text-accent">
@@ -235,8 +235,8 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                 <Settings className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">ParamÃ¨tres gÃ©nÃ©raux</h3>
-                <p className="text-sm font-medium text-slate-500">PrÃ©fÃ©rences locales conservÃ©es sur ce poste.</p>
+                <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Paramètres généraux</h3>
+                <p className="text-sm font-medium text-slate-500">Préférences locales conservées sur ce poste.</p>
               </div>
             </div>
 
@@ -245,7 +245,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                 <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
                     <Folder className="h-3.5 w-3.5" />
-                    Dossier dâ€™installation
+                    Dossier d'installation
                   </span>
                   <input
                     type="text"
@@ -258,7 +258,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                 <div>
                   <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-slate-500">
                     <Wrench className="h-3.5 w-3.5" />
-                    Mode dâ€™exÃ©cution
+                    Mode d'exécution
                   </span>
                   <div className="grid grid-cols-2 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1 dark:border-white/10 dark:bg-white/[0.045]">
                     {[
@@ -294,7 +294,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
               </div>
 
               <button type="submit" className="btn-primary">
-                Enregistrer les paramÃ¨tres
+                Enregistrer les paramètres
               </button>
             </form>
           </div>
@@ -306,7 +306,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
               </div>
               <div>
                 <h3 className="font-heading text-lg font-extrabold text-slate-950 dark:text-white">Catalogue externe</h3>
-                <p className="text-sm font-medium text-slate-500">Synchronisez une liste dâ€™applications pour votre Ã©quipe.</p>
+                <p className="text-sm font-medium text-slate-500">Synchronisez une liste d'applications personnalisée pour votre équipe.</p>
               </div>
             </div>
 
@@ -324,11 +324,11 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
 
               <div className="flex flex-wrap gap-2">
                 <button type="submit" className="btn-accent">
-                  TÃ©lÃ©charger et synchroniser
+                  Télécharger et synchroniser
                 </button>
                 {customCatalogUrl && (
                   <button type="button" onClick={resetCatalog} className="btn-secondary">
-                    RÃ©initialiser
+                    Réinitialiser
                   </button>
                 )}
               </div>
@@ -346,20 +346,20 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
               </div>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
-              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Mise Ã  jour des sources', updateSources)}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Mise à jour des sources', updateSources)}>
                 winget source update
               </button>
-              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('RÃ©initialisation des sources', resetSources)}>
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Réinitialisation des sources', resetSources)}>
                 winget source reset --force
               </button>
               <button type="button" className="btn-accent" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Upgrade rapide', () => runMaintenanceProfile('fast-upgrade'))}>
                 Upgrade rapide
               </button>
-              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('RÃ©paration des sources', () => runMaintenanceProfile('repair-sources'))}>
-                RÃ©parer les sources
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Réparation des sources', () => runMaintenanceProfile('repair-sources'))}>
+                Réparer les sources
               </button>
-              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Maintenance forcÃ©e', () => runMaintenanceProfile('full-maintenance'))}>
-                Mode maintenance forcÃ©e
+              <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Maintenance forcée', () => runMaintenanceProfile('full-maintenance'))}>
+                Mode maintenance forcée
               </button>
               <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Nettoyage du cache', cleanupWingetCache)}>
                 Nettoyer cache winget
@@ -368,11 +368,11 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                 Ouvrir Delivery Optimization
               </button>
               <button type="button" className="btn-secondary" disabled={Boolean(busyAction) || hasActiveOperations} onClick={() => runMutation('Restauration des sources', restoreDefaultSources)}>
-                Restaurer sources par dÃ©faut
+                Restaurer sources par défaut
               </button>
             </div>
-            {busyAction && <p className="mt-3 text-sm text-slate-500" role="status">{busyAction} en coursâ€¦</p>}
-            {hasActiveOperations && <p className="mt-3 text-sm text-slate-500" role="status">Terminez la file dâ€™opÃ©rations avant la maintenance.</p>}
+            {busyAction && <p className="mt-3 text-sm text-slate-500" role="status">{busyAction} en cours…</p>}
+            {hasActiveOperations && <p className="mt-3 text-sm text-slate-500" role="status">Terminez la file d'opérations avant la maintenance.</p>}
           </div>
         </section>
 
@@ -384,7 +384,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                   <Database className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">DÃ©pÃ´ts actifs</h3>
+                  <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">Dépôts actifs</h3>
                   <p className="text-xs font-semibold text-slate-500">{sources.length} source(s) WinGet</p>
                 </div>
               </div>
@@ -423,7 +423,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                 ))
               ) : (
                 <p className="rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm font-medium text-slate-500 dark:border-white/10">
-                  Aucun dÃ©pÃ´t actif dÃ©tectÃ©.
+                  Aucun dépôt actif détecté.
                 </p>
               )}
             </div>
@@ -435,8 +435,8 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                 <Code2 className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">Ã€ propos</h3>
-                <p className="text-xs font-semibold text-slate-500">NeoGet v2.3.0</p>
+                <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">À propos</h3>
+                <p className="text-xs font-semibold text-slate-500">NeoGet v2.3.3</p>
               </div>
             </div>
             <div className="mt-4 space-y-2 text-xs">
@@ -446,7 +446,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
               </div>
               <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
                 <span className="font-bold text-slate-500">Version</span>
-                <span className="font-extrabold text-accent font-mono">2.3.0</span>
+                <span className="font-extrabold text-accent font-mono">2.3.3</span>
               </div>
               <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
                 <span className="font-bold text-slate-500">Moteur</span>
@@ -463,4 +463,3 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
     </div>
   )
 }
-

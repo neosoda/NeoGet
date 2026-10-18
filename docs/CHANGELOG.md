@@ -4,6 +4,20 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [2.3.3] — 2026-10-18
+
+### 🐛 Correctifs & Améliorations
+- **Résolution intégrale de l'encodage du menu "Sources"** : Élimination définitive de l'ensemble des caractères corrompus (mojibake UTF-8) dans `SettingsView.tsx`, garantissant un affichage textuel impeccable de l'ensemble des libellés, explications et profils de maintenance des sources WinGet.
+- **Harmonisation Anti-Slop globale** :
+  - Remplacement des cartes d'aperçu placeholders du *Toolkit Windows* par des indicateurs dynamiques contextuels (taux d'application des tweaks, volume total des nettoyages, statut de la vue active).
+  - Anonymisation propre du label système dans le shell de l'application (`Poste local`).
+  - Assainissement du fichier `README.md` et des scripts d'automatisation pour supprimer les textes mal encodés et les tournures marketing superflues.
+- **Fiabilisation des tests asynchrones & CI** :
+  - Élimination de la condition de course sur `rapid_duplicate_requests_execute_once_and_recover_after_error` via `tokio::sync::Notify` garantissant un passage déterministe à 100 % sous forte charge.
+  - Mise à niveau du workflow GitHub Actions vers Node.js 22 LTS.
+
+---
+
 ## [2.3.2] — 2026-10-18
 
 ### 🐛 Correctifs & Stabilité
