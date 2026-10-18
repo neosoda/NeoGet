@@ -37,7 +37,7 @@ pub struct OperationManager {
     records: Arc<Mutex<Vec<OperationRecord>>>,
     serial: Arc<Semaphore>,
     admission: Arc<Mutex<()>>,
-    tail: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    tail: Arc<Mutex<Option<tauri::async_runtime::JoinHandle<()>>>>,
     next_id: Arc<AtomicU64>,
 }
 
@@ -55,7 +55,7 @@ pub fn list_operations(manager: State<'_, OperationManager>) -> Vec<OperationRec
 }
 
 #[tauri::command]
-pub fn queue_install(
+pub async fn queue_install(
     app: AppHandle,
     manager: State<'_, OperationManager>,
     id: String,
@@ -79,7 +79,7 @@ fn enqueue_install(
 }
 
 #[tauri::command]
-pub fn queue_upgrade(
+pub async fn queue_upgrade(
     app: AppHandle,
     manager: State<'_, OperationManager>,
     id: String,
@@ -111,7 +111,7 @@ fn enqueue_upgrade(
 }
 
 #[tauri::command]
-pub fn queue_uninstall(
+pub async fn queue_uninstall(
     app: AppHandle,
     manager: State<'_, OperationManager>,
     id: String,
@@ -129,7 +129,7 @@ pub fn queue_uninstall(
 }
 
 #[tauri::command]
-pub fn queue_install_batch(
+pub async fn queue_install_batch(
     app: AppHandle,
     manager: State<'_, OperationManager>,
     items: Vec<BatchItem>,
@@ -146,7 +146,7 @@ pub fn queue_install_batch(
 }
 
 #[tauri::command]
-pub fn queue_upgrade_batch(
+pub async fn queue_upgrade_batch(
     app: AppHandle,
     manager: State<'_, OperationManager>,
     items: Vec<BatchItem>,
@@ -299,7 +299,7 @@ impl OperationManager {
             .lock()
             .unwrap_or_else(|poison| poison.into_inner())
             .take();
-        let task = tokio::spawn(async move {
+        let task = tauri::async_runtime::spawn(async move {
             if let Some(previous) = previous {
                 if let Err(err) = previous.await {
                     error!("previous operation task failed: {}", err);
@@ -319,7 +319,7 @@ impl OperationManager {
                 }
             };
             manager.transition(&operation_id, OperationStatus::Running, None, None, &emit);
-            let result = match tokio::spawn(execute()).await {
+            let result = match tauri::async_runtime::spawn(execute()).await {
                 Ok(result) => result,
                 Err(error) => {
                     error!("operation_id={} panicked or failed: {}", operation_id, error);

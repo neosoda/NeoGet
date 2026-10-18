@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # ðŸš€ NeoGet
 
@@ -8,7 +8,7 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en 
 
 <br />
 
-[![Release](https://img.shields.io/badge/Release-v2.3.1-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.1-x64.exe)
+[![Release](https://img.shields.io/badge/Release-v2.3.2-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.2-x64.exe)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111)](https://react.dev)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-24C8DB?style=for-the-badge&logo=tauri&logoColor=fff)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-backend-000000?style=for-the-badge&logo=rust&logoColor=fff)](https://www.rust-lang.org)
@@ -19,7 +19,7 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic systÃ¨me en 
 <br />
 
 <p>
-  <a href="releases/NeoGet-Setup-2.3.1-x64.exe"><strong>âš¡ TÃ©lÃ©charger l'installateur Windows (.exe)</strong></a>
+  <a href="releases/NeoGet-Setup-2.3.2-x64.exe"><strong>âš¡ TÃ©lÃ©charger l'installateur Windows (.exe)</strong></a>
   Â·
   <a href="docs/SETUP.md"><strong>ðŸ“˜ Guide Dev</strong></a>
   Â·

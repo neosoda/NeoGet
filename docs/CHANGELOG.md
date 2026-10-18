@@ -4,6 +4,16 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [2.3.2] — 2026-10-18
+
+### 🐛 Correctifs & Stabilité
+- **Résolution définitive du crash au lancement de "Tout mettre à jour" (`missing Tokio 1.x runtime reactor`)** :
+  - **Conversion des commandes IPC Tauri en fonctions asynchrones (`async fn`)** : `queue_upgrade_batch`, `queue_install_batch`, `queue_upgrade`, `queue_install`, et `queue_uninstall` s'exécutent désormais directement dans le contexte du réacteur asynchrone Tauri/Tokio au lieu des threads de travail synchrones du pool de commandes.
+  - **Remplacement de `tokio::spawn` par `tauri::async_runtime::spawn`** : Garantit la compatibilité du cycle de vie des tâches asynchrones, quel que soit le contexte d'appel ou de déclenchement.
+  - **Gestion résiliente des exceptions asynchrones** : La tâche d'exécution intercepte désormais les paniques éventuelles sans interrompre la file d'attente globale séquentielle.
+
+---
+
 ## [2.3.1] — 2026-10-17
 
 ### 🐛 Correctifs & Stabilité
