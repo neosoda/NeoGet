@@ -15,14 +15,14 @@
     "tauri:build": "tauri build && node -e \"const fs = require('fs'), path = require('path'), cp = require('child_process'); try { cp.execSync('taskkill /F /IM NeoGet.exe', {stdio:'ignore'}); } catch(e){} const userExe = path.join(process.env.USERPROFILE || '', '.cargo/target/neoget/release/neoget.exe'); const srcExe = fs.existsSync(userExe) ? userExe : 'src-tauri/target/release/neoget.exe'; fs.copyFileSync(srcExe, './NeoGet.exe');\""
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/api": "^2.12.4",
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.424.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.2",
+    "@tauri-apps/cli": "^2.12.3",
     "@types/node": "^25.5.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

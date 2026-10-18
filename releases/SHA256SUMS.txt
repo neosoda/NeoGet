@@ -1,2 +1,2 @@
-f2d19d688db72b22601fa62b3f38ae4c8bf92eca6cbcd813cdcc99f8afaa94b4 *NeoGet-2.3.3-x64.exe
-a8b0b26b1f56f381bdbcf3a87e0ef0e741e8a763d3f0a1e492f9dd2b208c2586 *NeoGet-Setup-2.3.3-x64.exe
+﻿5b25e5e73f8278ffd89b0ee81ea9bd2dbee19216a33db1edf0974c5534d25cc2 *NeoGet-2.3.3-x64.exe
+26c5b5fd1f39741fddf9f8edf47deb29330600754a665dc5f3cffde94fd6c13f *NeoGet-Setup-2.3.3-x64.exe
