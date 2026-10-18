@@ -55,24 +55,27 @@ if (-not (Test-Path -Path "releases")) {
     New-Item -ItemType Directory -Path "releases" -Force | Out-Null
 }
 
-$releaseExe = Join-Path $env:USERPROFILE ".cargo\target\neoget\release\neoget.exe"
-if (-not (Test-Path $releaseExe)) {
-    $releaseExe = "src-tauri\target\release\neoget.exe"
-}
+$releaseExeCandidates = @(
+    (Join-Path $env:USERPROFILE ".cargo\target\neoget\release\neoget.exe"),
+    "C:\Users\NEO.NEO-PC\.cargo\target\neoget\release\neoget.exe",
+    "src-tauri\target\release\neoget.exe",
+    "target\release\neoget.exe"
+)
+$releaseExe = $releaseExeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-if (Test-Path $releaseExe) {
+if ($releaseExe -and (Test-Path $releaseExe)) {
     Copy-Item -Path $releaseExe -Destination "releases\NeoGet-$version-x64.exe" -Force
     Copy-Item -Path $releaseExe -Destination "releases\neoget.exe" -Force
-    Write-Host "  -> Binaire autonome copié vers releases\NeoGet-$version-x64.exe" -ForegroundColor Green
+    Write-Host "  -> Binaire autonome copié vers releases\NeoGet-$version-x64.exe (depuis $releaseExe)" -ForegroundColor Green
 } else {
-    Write-Error "Exécutable portable introuvable dans $releaseExe"
+    Write-Error "Exécutable portable introuvable dans les emplacements cibles"
     exit 1
 }
 
 # Rechercher le bundle d'installation NSIS généré par Tauri
-$nsisCandidates = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis\*$version*.exe", "$env:USERPROFILE\.cargo\target\neoget\release\bundle\nsis\*$version*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+$nsisCandidates = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis\*$version*.exe", "$env:USERPROFILE\.cargo\target\neoget\release\bundle\nsis\*$version*.exe", "C:\Users\NEO.NEO-PC\.cargo\target\neoget\release\bundle\nsis\*$version*.exe", "target\release\bundle\nsis\*$version*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
 if (-not $nsisCandidates -or $nsisCandidates.Count -eq 0) {
-    $nsisCandidates = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis\*.exe", "$env:USERPROFILE\.cargo\target\neoget\release\bundle\nsis\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+    $nsisCandidates = Get-ChildItem -Path "src-tauri\target\release\bundle\nsis\*.exe", "$env:USERPROFILE\.cargo\target\neoget\release\bundle\nsis\*.exe", "C:\Users\NEO.NEO-PC\.cargo\target\neoget\release\bundle\nsis\*.exe", "target\release\bundle\nsis\*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
 }
 if ($nsisCandidates -and $nsisCandidates.Count -gt 0) {
     $nsisSetup = $nsisCandidates[0].FullName

@@ -34,9 +34,15 @@ jobs:
 
       - name: Rust check
         run: cargo check --manifest-path src-tauri/Cargo.toml
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
 
       - name: Build Tauri app
         run: npm run tauri:build
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
