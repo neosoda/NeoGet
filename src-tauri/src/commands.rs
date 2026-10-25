@@ -1828,7 +1828,7 @@ pub async fn uninstall_software(
         ));
     }
 
-    if let Some(msg) = requires_interactive_or_elevation(&normalized_output) {
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
         error!(
             "Interaction/élévation requis lors de la désinstallation de {} : {}",
             name, msg
