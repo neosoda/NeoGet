@@ -1304,7 +1304,12 @@ fn is_valid_winget_package_id(id: &str) -> bool {
     if trimmed.is_empty() || trimmed.len() < 2 {
         return false;
     }
-    if trimmed.contains(' ') || trimmed.contains('\t') || trimmed.contains("...") {
+    if trimmed.contains(' ')
+        || trimmed.contains('\t')
+        || trimmed.contains('\n')
+        || trimmed.contains('\r')
+        || trimmed.contains("...")
+    {
         return false;
     }
     if trimmed.starts_with('(') || trimmed.starts_with(')') || trimmed.ends_with('.') {
@@ -1314,8 +1319,20 @@ fn is_valid_winget_package_id(id: &str) -> bool {
     if l.contains("disponible")
         || l.contains("available")
         || l.contains("épingle")
+        || l.contains("epingle")
         || l.contains("pinned")
+        || l.contains("aucun")
+        || l.contains("none")
     {
+        return false;
+    }
+    // WinGet package IDs are typically Publisher.Product or similar, allow common safe chars
+    let bytes = trimmed.as_bytes();
+    for &b in bytes.iter() {
+        let c = b as char;
+        if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+            continue;
+        }
         return false;
     }
     true
@@ -3361,6 +3378,21 @@ mod tests {
         assert!(privilege_error_output("access is denied"));
         assert!(privilege_error_output("droits administrateur requis"));
         assert!(!privilege_error_output("operation completed"));
+    }
+
+    #[test]
+    fn is_valid_winget_package_id_rejects_invalid_and_accepts_valid() {
+        assert!(is_valid_winget_package_id("Microsoft.VisualStudioCode"));
+        assert!(is_valid_winget_package_id("Mozilla.Firefox"));
+        assert!(is_valid_winget_package_id("VideoLAN.VLC"));
+        assert!(!is_valid_winget_package_id(""));
+        assert!(!is_valid_winget_package_id("   "));
+        assert!(!is_valid_winget_package_id("bad id with space"));
+        assert!(!is_valid_winget_package_id("(bad)"));
+        assert!(!is_valid_winget_package_id("test."));
+        assert!(!is_valid_winget_package_id("disponible"));
+        assert!(!is_valid_winget_package_id("available"));
+        assert!(!is_valid_winget_package_id("Aucun"));
     }
 
     #[test]
