@@ -123,7 +123,10 @@ fn already_installed_output(normalized_output: &str) -> bool {
         || normalized_output.contains("no newer package versions are available")
 }
 
-fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> {
+fn requires_interactive_or_elevation(
+    normalized_output: &str,
+    exit_code: Option<i32>,
+) -> Option<String> {
     // Emplacement requis
     if normalized_output.contains("emplacement d'installation")
         || normalized_output.contains("location is required")
@@ -132,14 +135,21 @@ fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> 
     {
         return Some("Emplacement d'installation requis : le package exige une sélection manuelle d'emplacement.".to_string());
     }
-    // Erreurs certificat/signature (signatures précises uniquement)
+    // Erreurs certificat/signature (signatures précises uniquement, éviter faux positifs)
     if normalized_output.contains("0x80072f8f")
         || normalized_output.contains("signature verification failed")
         || normalized_output.contains("trust failure")
         || normalized_output.contains("certificate not trusted")
-        || normalized_output.contains("certificat non")
+        || normalized_output.contains("certificat non valide")
     {
-        return Some("Erreur de certificat/signature du package.".to_string());
+        let suffix = match exit_code {
+            Some(c) => format!(" (code {})", c),
+            None => String::new(),
+        };
+        return Some(format!(
+            "Erreur de certificat/signature du package{}",
+            suffix
+        ));
     }
     // Conflits MSIX/AppX deployment (signatures précises uniquement)
     if normalized_output.contains("0x80073cf6")
@@ -150,7 +160,11 @@ fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> 
         || normalized_output.contains("add-appxfailed")
         || normalized_output.contains("appx operation failed")
     {
-        return Some("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur.".to_string());
+        let suffix = match exit_code {
+            Some(c) => format!(" (code {})", c),
+            None => String::new(),
+        };
+        return Some(format!("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur{}", suffix));
     }
     // Annulation / interaction requise - signatures précises
     if normalized_output.contains("user cancelled")
@@ -158,9 +172,14 @@ fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> 
         || normalized_output.contains("operation cancelled")
         || normalized_output.contains("annule par l'utilisateur")
     {
-        return Some(
-            "Opération annulée ou interaction utilisateur requise en mode silencieux.".to_string(),
-        );
+        let suffix = match exit_code {
+            Some(c) => format!(" (code {})", c),
+            None => String::new(),
+        };
+        return Some(format!(
+            "Opération annulée ou interaction utilisateur requise en mode silencieux{}",
+            suffix
+        ));
     }
     None
 }
@@ -741,7 +760,7 @@ async fn run_winget_install(
         ));
     }
 
-    if let Some(msg) = requires_interactive_or_elevation(&normalized_output) {
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
         error!(
             "Interaction/élévation requis lors de l'installation de {} : {}",
             name, msg
@@ -1386,11 +1405,13 @@ fn is_valid_winget_package_id(id: &str) -> bool {
     {
         return false;
     }
+    // Whole-token equality only for blacklist heuristics
     if l == "aucun" || l == "none" {
         return false;
     }
-    // WinGet package IDs can include + and other chars in practice (e.g. VCRedist 2015+)
-    // Allow ASCII alnum and common safe punctuation, plus non-ASCII alphanumeric
+    // WinGet package IDs can include + and other chars in practice (e.g. VCRedist 2015+, Notepad++)
+    // Allow ASCII alnum and common safe punctuation used by WinGet, plus non-ASCII alphanumeric
+    // Argument passing/escaping elsewhere prevents shell injection
     for c in trimmed.chars() {
         if c.is_ascii_alphanumeric()
             || c == '.'
@@ -1399,6 +1420,8 @@ fn is_valid_winget_package_id(id: &str) -> bool {
             || c == '+'
             || c == '~'
             || c == '='
+            || c == '#'
+            || c == ':'
         {
             continue;
         }
@@ -1604,7 +1627,8 @@ pub async fn upgrade_software(
         ));
     }
 
-    if let Some(msg) = requires_interactive_or_elevation(&normalized_output) {
+    let code = output.status.code();
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output, code) {
         error!("Interaction/élévation requis pour {} : {}", name, msg);
         return Err(format!("{} : {}", name, msg));
     }
@@ -3464,6 +3488,11 @@ mod tests {
         assert!(is_valid_winget_package_id("Notepad++.Notepad++"));
         assert!(is_valid_winget_package_id("Microsoft.VCRedist.2015+.x64"));
         assert!(is_valid_winget_package_id("Some.Package~1.0"));
+        assert!(is_valid_winget_package_id(
+            "Microsoft.WindowsTerminalPreview"
+        )); // ensure no false positive
+        assert!(is_valid_winget_package_id("Some.NonePackage")); // contains none but not exact token
+        assert!(is_valid_winget_package_id("AucunPlus.Un")); // contains aucun but not exact
         assert!(!is_valid_winget_package_id(""));
         assert!(!is_valid_winget_package_id("   "));
         assert!(!is_valid_winget_package_id("bad id with space"));
@@ -3473,6 +3502,7 @@ mod tests {
         assert!(!is_valid_winget_package_id("available"));
         assert!(!is_valid_winget_package_id("Aucun"));
         assert!(!is_valid_winget_package_id("aucun"));
+        assert!(!is_valid_winget_package_id("none"));
     }
 
     #[test]
@@ -3494,50 +3524,55 @@ mod tests {
     #[test]
     fn requires_interactive_or_elevation_detects_signatures() {
         let n1 = normalize_for_match("Emplacement d'installation requis");
-        assert!(requires_interactive_or_elevation(&n1).is_some());
+        assert!(requires_interactive_or_elevation(&n1, Some(1)).is_some());
         let n2 = normalize_for_match("Location is required");
-        assert!(requires_interactive_or_elevation(&n2).is_some());
+        assert!(requires_interactive_or_elevation(&n2, Some(1)).is_some());
         let n3 = normalize_for_match("0x80073CF6 MSIX error");
-        let m3 = requires_interactive_or_elevation(&n3).unwrap();
+        let m3 = requires_interactive_or_elevation(&n3, Some(1)).unwrap();
         assert!(m3.contains("MSIX"));
+        assert!(m3.contains("code"));
         let n4 = normalize_for_match("appx deployment failed");
-        let m4 = requires_interactive_or_elevation(&n4).unwrap();
+        let m4 = requires_interactive_or_elevation(&n4, Some(1)).unwrap();
         assert!(m4.contains("MSIX"));
         let n5 = normalize_for_match("User cancelled");
-        assert!(requires_interactive_or_elevation(&n5).is_some());
+        assert!(requires_interactive_or_elevation(&n5, Some(1)).is_some());
         let n6 = normalize_for_match("operation completed successfully");
-        assert!(requires_interactive_or_elevation(&n6).is_none());
+        assert!(requires_interactive_or_elevation(&n6, Some(1)).is_none());
     }
 
     #[test]
     fn requires_interactive_or_elevation_certificate_vs_msix() {
         let c1 = normalize_for_match("Signature verification failed");
-        let m1 = requires_interactive_or_elevation(&c1).unwrap();
+        let m1 = requires_interactive_or_elevation(&c1, Some(-1978335189)).unwrap();
         assert!(m1.contains("certificat"));
         assert!(!m1.contains("MSIX"));
+        assert!(m1.contains("code"));
         let c2 = normalize_for_match("Certificat non valide 0x80072f8f");
-        let m2 = requires_interactive_or_elevation(&c2).unwrap();
+        let m2 = requires_interactive_or_elevation(&c2, Some(1)).unwrap();
         assert!(m2.contains("certificat"));
+        assert!(m2.contains("code"));
         let n1 = normalize_for_match("certificate is used in processus");
         // Do not trigger on generic word alone
-        assert!(requires_interactive_or_elevation(&n1).is_none());
+        assert!(requires_interactive_or_elevation(&n1, Some(1)).is_none());
     }
 
     #[test]
     fn requires_interactive_or_elevation_no_false_positive_cer() {
         let t1 = normalize_for_match("processus en cours");
-        assert!(requires_interactive_or_elevation(&t1).is_none());
+        assert!(requires_interactive_or_elevation(&t1, Some(1)).is_none());
         let t2 = normalize_for_match("procédure terminée");
-        assert!(requires_interactive_or_elevation(&t2).is_none());
+        assert!(requires_interactive_or_elevation(&t2, Some(1)).is_none());
         let t3 = normalize_for_match("exacerber le problème");
-        assert!(requires_interactive_or_elevation(&t3).is_none());
+        assert!(requires_interactive_or_elevation(&t3, Some(1)).is_none());
         let t4 = normalize_for_match("operation completed successfully");
-        assert!(requires_interactive_or_elevation(&t4).is_none());
+        assert!(requires_interactive_or_elevation(&t4, Some(1)).is_none());
         let t5 = normalize_for_match("certificate is mentioned in log");
-        assert!(requires_interactive_or_elevation(&t5).is_none());
+        assert!(requires_interactive_or_elevation(&t5, Some(1)).is_none());
         let t6 = normalize_for_match("installation cancelled in unrelated step");
-        // cancelled alone without user cancelled/operation cancelled/annule par l'utilisateur
-        assert!(requires_interactive_or_elevation(&t6).is_none());
+        // cancelled alone without precise signatures
+        assert!(requires_interactive_or_elevation(&t6, Some(1)).is_none());
+        let t7 = normalize_for_match("hash sha256 cert abc123");
+        assert!(requires_interactive_or_elevation(&t7, Some(5)).is_none());
     }
 
     #[test]
