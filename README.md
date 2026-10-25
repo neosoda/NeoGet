@@ -8,7 +8,7 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic système en te
 
 <br />
 
-[![Release](https://img.shields.io/badge/Release-v2.3.3-32A7F3?style=for-the-badge&logo=github&logoColor=fff)](releases/NeoGet-Setup-2.3.3-x64.exe)
+[![Release](https://img.shields.io/github/v/release/neosoda/NeoGet?style=for-the-badge&logo=github&logoColor=fff)](https://github.com/neosoda/NeoGet/releases)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=111)](https://react.dev)
 [![Tauri 2](https://img.shields.io/badge/Tauri-2.0-24C8DB?style=for-the-badge&logo=tauri&logoColor=fff)](https://tauri.app)
 [![Rust](https://img.shields.io/badge/Rust-backend-000000?style=for-the-badge&logo=rust&logoColor=fff)](https://www.rust-lang.org)
@@ -19,7 +19,7 @@ NeoGet rassemble le gestionnaire de paquets WinGet, le diagnostic système en te
 <br />
 
 <p>
-  <a href="releases/NeoGet-Setup-2.3.3-x64.exe"><strong>⚡ Télécharger l'installateur Windows (.exe)</strong></a>
+  <a href="https://github.com/neosoda/NeoGet/releases"><strong>⚡ Télécharger l'installateur Windows (.exe)</strong></a>
   ·
   <a href="docs/SETUP.md"><strong>📖 Guide Dev</strong></a>
   ·
@@ -83,10 +83,10 @@ Configurer ou maintenir un poste Windows propre nécessite souvent plusieurs out
 
 ### 1. Téléchargement et installation
 
-Téléchargez l'installateur Windows officiel :
+Téléchargez l'installateur Windows officiel depuis la [page des releases](https://github.com/neosoda/NeoGet/releases) :
 
-- **Installateur NSIS** : [`releases/NeoGet-Setup-2.3.3-x64.exe`](releases/NeoGet-Setup-2.3.3-x64.exe)
-- **Version portable** : [`releases/NeoGet-2.3.3-x64.exe`](releases/NeoGet-2.3.3-x64.exe)
+- **Installateur NSIS** : `NeoGet-Setup-<version>-x64.exe`
+- **Version portable** : `NeoGet-<version>-x64.exe`
 
 > **Note** : Pour appliquer les optimisations système avancées du Toolkit Windows, lancez NeoGet avec les privilèges administrateur (`Clic droit -> Exécuter en tant qu'administrateur`).
 
@@ -134,9 +134,7 @@ NeoGet/
 │   ├── src/operations.rs               # Orchestration, déduplication et file d'attente séquentielle
 │   ├── src/lib.rs                      # Enregistrement des commandes et journalisation
 │   └── tauri.conf.json                 # Configuration Tauri v2
-├── releases/                           # Binaires exécutables et empreintes SHA-256
-│   ├── NeoGet-2.3.3-x64.exe
-│   ├── NeoGet-Setup-2.3.3-x64.exe
+├── releases/                           # Binaires historiques et empreintes SHA-256
 │   └── SHA256SUMS.txt
 ├── software.json                       # Catalogue Starter Pack par défaut
 └── package.json                        # Scripts et dépendances NPM

@@ -436,7 +436,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
               </div>
               <div>
                 <h3 className="font-heading text-base font-extrabold text-slate-950 dark:text-white">À propos</h3>
-                <p className="text-xs font-semibold text-slate-500">NeoGet v2.3.3</p>
+                <p className="text-xs font-semibold text-slate-500">NeoGet v2.3.4</p>
               </div>
             </div>
             <div className="mt-4 space-y-2 text-xs">
@@ -446,7 +446,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
               </div>
               <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
                 <span className="font-bold text-slate-500">Version</span>
-                <span className="font-extrabold text-accent font-mono">2.3.3</span>
+                <span className="font-extrabold text-accent font-mono">2.3.4</span>
               </div>
               <div className="flex justify-between rounded-lg border border-slate-200/70 bg-slate-50 p-2.5 dark:border-white/10 dark:bg-white/[0.04]">
                 <span className="font-bold text-slate-500">Moteur</span>
