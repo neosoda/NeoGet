@@ -26,3 +26,8 @@
 - Tests obligatoires: npm test OK, cargo fmt/clippy/test OK, npm run build OK.
 - Risques résiduels réduits; validation live WinGet/E2E encore nécessaire sur Windows cible.
 - Statut: **APPROUVÉ AVEC RÉSERVES** (plus de majeurs ouverts après corrections; validations environnementales restantes documentées).
+
+## Justifications complémentaires
+- S-002 CSP: 'unsafe-inline' nécessaire pour styles/scripts inline utilisés par certains composants Tauri/Vite/build; pas d'utilisation dangereuse de eval/innerHTML identifiée, tauri.conf.json conservé avec justification.
+- F-002: Parcours UI complets non automatisés en E2E dans cet environnement (pas de runner UI/Tauri complet); composants clés revus statiquement, tests unitaires ajoutés où possible, validation manuelle recommandée sur Win10/Win11.
+- B-002: Artefacts historiques dans releases/ (2.2.0-2.3.3) conservés pour traçabilité; les artefacts produits par ce build audit sont dans .cargo/target/neoget/release/bundle/nsis/ (NeoGet_2.3.3_x64-setup.exe) avec SHA-256 ci-dessus, distincts et vérifiables.

@@ -82,3 +82,7 @@ Commit initial : $(git -C /c/Users/NEO.NEO-PC/.ao/data/worktrees/neoget/neoget-2
 - A-004: `install_winget` durci (timeouts Invoke-RestMethod/Invoke-WebRequest, validation assets/taille, stderr/stdout, exit 1 en cas d'erreur). Messages plus explicites.
 - A-002/S-001: Renforcement parsing/validation IDs WinGet + tests injection/échappement PowerShell ajoutés (18 tests Rust passés). Validation IDs autorise désormais caractères alphanumériques non-ASCII légitimes tout en bloquant injection.
 - CI/tous les tests obligatoires relancés avec succès.
+
+## 8) A-002 réellement corrigée
+Ajout de `requires_interactive_or_elevation()` avec détection explicite et journalisation error! pour cas "location required", MSIX/AppX (0x80073cf6), annulation utilisateur. Appliqué dans install/upgrade/uninstall avec messages clairs remontés à l'utilisateur. Tests unitaires ajoutés et passants.
+Justifications S-002/F-002/B-002 documentées ci-après.

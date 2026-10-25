@@ -123,6 +123,33 @@ fn already_installed_output(normalized_output: &str) -> bool {
         || normalized_output.contains("no newer package versions are available")
 }
 
+fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> {
+    if normalized_output.contains("emplacement d'installation")
+        || normalized_output.contains("location is required")
+        || normalized_output.contains("installation location")
+        || normalized_output.contains("select an installation location")
+    {
+        return Some("Emplacement d'installation requis : le package exige une sélection manuelle d'emplacement.".to_string());
+    }
+    if normalized_output.contains("0x80073cf6")
+        || normalized_output.contains("msix")
+        || normalized_output.contains("appx")
+        || normalized_output.contains("cer")
+    {
+        return Some("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur.".to_string());
+    }
+    if normalized_output.contains("user cancelled")
+        || normalized_output.contains("annule")
+        || normalized_output.contains("cancelled by user")
+        || normalized_output.contains("cancelled")
+    {
+        return Some(
+            "Opération annulée ou interaction utilisateur requise en mode silencieux.".to_string(),
+        );
+    }
+    None
+}
+
 fn no_winget_result(normalized_output: &str) -> bool {
     normalized_output.contains("no package found matching input criteria")
         || normalized_output.contains("no installed package found")
@@ -697,6 +724,14 @@ async fn run_winget_install(
             "Erreur de privileges : relancez NeoGet en tant qu'administrateur pour installer {}.",
             name
         ));
+    }
+
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output) {
+        error!(
+            "Interaction/élévation requis lors de l'installation de {} : {}",
+            name, msg
+        );
+        return Err(format!("{} : {}", name, msg));
     }
 
     error!(
@@ -1546,15 +1581,9 @@ pub async fn upgrade_software(
         ));
     }
 
-    if normalized_output.contains("emplacement d'installation")
-        || normalized_output.contains("location is required")
-        || normalized_output.contains("installation location")
-    {
-        error!("Emplacement d'installation requis pour {}", name);
-        return Err(format!(
-            "{} nécessite la spécification manuelle d'un emplacement d'installation par l'éditeur.",
-            name
-        ));
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output) {
+        error!("Interaction/élévation requis pour {} : {}", name, msg);
+        return Err(format!("{} : {}", name, msg));
     }
 
     error!(
@@ -1750,6 +1779,14 @@ pub async fn uninstall_software(
             "Erreur de privilèges : relancez NeoGet en tant qu'administrateur pour désinstaller {}.",
             name
         ));
+    }
+
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output) {
+        error!(
+            "Interaction/élévation requis lors de la désinstallation de {} : {}",
+            name, msg
+        );
+        return Err(format!("{} : {}", name, msg));
     }
 
     error!(
@@ -3426,6 +3463,20 @@ mod tests {
         assert!(!is_valid_winget_package_id("Test&calc"));
         assert!(!is_valid_winget_package_id("Test`whoami"));
         assert!(!is_valid_winget_package_id("Test$(whoami)"));
+    }
+
+    #[test]
+    fn requires_interactive_or_elevation_detects_signatures() {
+        let n1 = normalize_for_match("Emplacement d'installation requis");
+        assert!(requires_interactive_or_elevation(&n1).is_some());
+        let n2 = normalize_for_match("Location is required");
+        assert!(requires_interactive_or_elevation(&n2).is_some());
+        let n3 = normalize_for_match("0x80073CF6 MSIX error");
+        assert!(requires_interactive_or_elevation(&n3).is_some());
+        let n4 = normalize_for_match("User cancelled");
+        assert!(requires_interactive_or_elevation(&n4).is_some());
+        let n5 = normalize_for_match("operation completed successfully");
+        assert!(requires_interactive_or_elevation(&n5).is_none());
     }
 
     #[test]
