@@ -1,6 +1,6 @@
 {
   "productName": "NeoGet",
-  "version": "2.3.4",
+  "version": "2.3.5",
   "identifier": "fr.neoget.installer",
   "build": {
     "beforeDevCommand": "",

@@ -103,15 +103,16 @@ d'origine est répliqué explicitement plutôt que d'hériter des nouveaux défa
 | `backdrop-blur-sm` (4 px) | `backdrop-blur-sm` (8 px) | `backdrop-blur-xs` | Renommage de l'échelle |
 | `border` sans couleur → `gray-200` | `border` sans couleur → `currentColor` | règle `@layer base` restaurant `var(--color-gray-200)` | Changement de défaut |
 | `outline-none` | `outline-style: none` | inchangé | Les deux masquent l'anneau natif ; le focus visible est assuré par `focus:shadow-focus` |
-| 23 teintes de la palette (voir ci-dessous) | palette re-dérivée | valeurs v3 épinglées dans `tailwind.config.js` | v4 redéfinit la palette par défaut |
+| 60 teintes de la palette (voir ci-dessous) | palette re-dérivée | valeurs v3 épinglées dans `tailwind.config.js` | v4 redéfinit la palette par défaut |
 
 La palette v4 n'est pas la palette v3 exprimée différemment : les valeurs sRGB ont changé
 (`red-500` passe de `#ef4444` à `#fb2c36`, `amber-500` de `#f59e0b` à `#f99c00`,
 `emerald-700` de `#047857` à `#007956`, `teal-700` de `#0f766e` à `#00776e`, `slate-800` de
 `#1e293b` à `#1d293d`, `slate-900` de `#0f172a` à `#0f172b`, `red-800` de `#991b1b` à
-`#9f0712`, `gray-700` de `#374151` à `#364153`, …). Les **33 teintes de la palette par
+`#9f0712`, `gray-700` de `#374151` à `#364153`, …). Les **60 teintes de la palette par
 défaut** utilisées par l'application sont donc épinglées à leurs valeurs v3 dans
-`tailwind.config.js`.
+`tailwind.config.js`. Une teinte non listée retombe silencieusement sur sa valeur v4 (rendue
+en `lab()` par WebView2) : toute nouvelle teinte utilisée doit y être ajoutée.
 
 **Breaking change associé, plus discret mais critique** : v4 ne convertit plus
 automatiquement une couleur hexadécimale pour lui appliquer un modificateur d'opacité. En v3,
