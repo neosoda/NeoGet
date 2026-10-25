@@ -107,13 +107,27 @@ d'origine est répliqué explicitement plutôt que d'hériter des nouveaux défa
 
 La palette v4 n'est pas la palette v3 exprimée différemment : les valeurs sRGB ont changé
 (`red-500` passe de `#ef4444` à `#fb2c36`, `amber-500` de `#f59e0b` à `#f99c00`,
-`emerald-700` de `#047857` à `#007956`, `teal-700` de `#0f766e` à `#00776e`, `slate-500` de
-`#64748b` à `#62748e`, …). Les 23 teintes utilisées par l'application sont donc épinglées à
-leurs valeurs v3 dans `tailwind.config.js`.
+`emerald-700` de `#047857` à `#007956`, `teal-700` de `#0f766e` à `#00776e`, `slate-800` de
+`#1e293b` à `#1d293d`, `slate-900` de `#0f172a` à `#0f172b`, `red-800` de `#991b1b` à
+`#9f0712`, `gray-700` de `#374151` à `#364153`, …). Les **33 teintes de la palette par
+défaut** utilisées par l'application sont donc épinglées à leurs valeurs v3 dans
+`tailwind.config.js`.
+
+**Breaking change associé, plus discret mais critique** : v4 ne convertit plus
+automatiquement une couleur hexadécimale pour lui appliquer un modificateur d'opacité. En v3,
+`bg-accent/10` produisait `.bg-accent\/10{background-color:#22d3b61a}` ; en v4, une couleur
+déclarée en hexadécimal est **silencieusement ignorée** et l'utilitaire n'est pas généré
+(`bg-accent/10`, `border-accent/20`, `bg-primary/10`, `bg-error/10`, `bg-success/10`,
+`bg-warning/10`, `border-amber-500/30`… disparaissaient du CSS). Toutes les couleurs du
+fichier sont donc déclarées via un helper `alpha()` qui produit
+`rgb(r g b / <alpha-value>)` : la valeur sRGB exacte de la v3 est conservée **et** les
+modificateurs d'opacité redeviennent fonctionnels.
 
 Vérification : comparaison automatique de la valeur sRGB résolue de chaque utilitaire de
-couleur entre le build v3 (`origin/main`) et le build v4 — **0 écart** sur les 29 teintes
-utilisées par le code.
+couleur entre le build v3 (`origin/main`) et le build v4 — **0 écart** sur les 134 classes
+comparées, et les **211 classes de couleur** émises par le build v3 sont toutes présentes
+dans le build v4 (à la seule exception de `shadow-sm`, renommé volontairement en
+`shadow-xs`).
 
 ### 3.2 Bug latent corrigé
 
@@ -126,7 +140,7 @@ n'étaient pas générés en CSS**. La migration les restaure.
 
 | | v3 | v4 |
 | --- | --- | --- |
-| CSS | 47,8 ko (8,3 ko gzip) | 86,7 ko (13,8 ko gzip) |
+| CSS | 48,5 ko (8,2 ko gzip) | 85,1 ko (13,4 ko gzip) |
 | JS | 457,9 ko (132,4 ko gzip) | 510,3 ko (150,7 ko gzip) |
 
 L'écart CSS provient des variables de thème et des enregistrements `@property` que v4 émet,
