@@ -762,6 +762,9 @@ async fn run_winget_install(
 
     if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
         error!("Interaction/élévation requis pour {} : {}", name, msg);
+        if msg.contains("code de sortie") || msg.contains("(Code") {
+            return Err(format!("{} : {}", name, msg));
+        }
         let code_str = match output.status.code() {
             Some(c) => format!(" (code de sortie: {})", c),
             None => String::new(),
@@ -1630,8 +1633,18 @@ pub async fn upgrade_software(
 
     let code = output.status.code();
     if let Some(msg) = requires_interactive_or_elevation(&normalized_output, code) {
-        error!("Interaction/élévation requis pour {} : {}", name, msg);
-        return Err(format!("{} : {}", name, msg));
+        error!(
+            "Interaction/élévation requis pour la mise à jour de {} : {}",
+            name, msg
+        );
+        if msg.contains("code de sortie") || msg.contains("(Code") {
+            return Err(format!("{} : {}", name, msg));
+        }
+        let code_str = match code {
+            Some(c) => format!(" (code de sortie: {})", c),
+            None => String::new(),
+        };
+        return Err(format!("{} : {}{}", name, msg, code_str));
     }
 
     error!(
@@ -1834,6 +1847,9 @@ pub async fn uninstall_software(
             "Interaction/élévation requis lors de la désinstallation de {} : {}",
             name, msg
         );
+        if msg.contains("code de sortie") || msg.contains("(Code") {
+            return Err(format!("{} : {}", name, msg));
+        }
         let code_str = match output.status.code() {
             Some(c) => format!(" (code de sortie: {})", c),
             None => String::new(),
