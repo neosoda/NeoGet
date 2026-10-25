@@ -52,3 +52,20 @@ Commande: npm run tauri:build (recompilé)
 - C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe (6522880 octets, SHA256: 4488A00236E7FBA16B73B6FBA16BB06BBC2277ADC714E1546AFB02F68B2D5780)
 - C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/bundle/nsis/NeoGet_2.3.3_x64-setup.exe (1768893 octets, SHA256: B149FC68ACC53A312F1AF96C4047F0C2062ED4C2C9D60F5AD6DC1BC447877554)
 cargo test --lib: 21 passed, 0 failed, 1 ignored
+
+## Smoke test réel (non destructif)
+- Exécutable: C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe (SHA256 4488A00236E7FBA16B73B6FBA16BB06BBC2277ADC714E1546AFB02F68B2D5780)
+- Commande PowerShell: Start-Process exe -PassThru; Start-Sleep 6s; Get-Process PID; Stop-Process -Force
+- PID: 56972, MainWindowHandle: 1118458 != 0 -> fenêtre créée et reste ouverte pendant l'observation
+- Fermeture: Stop-Process -Force, terminé (CLOSED)
+- Statut: RÉEL - processus démarré et fermé proprement
+
+## Recherche WinGet réelle (lecture seule, sans installation)
+Commande: winget search vlc
+Sortie (extrait): VLC media player VideoLAN.VLC 3.0.24, pympress Cimbali.pympress 1.8.6, Jellyfin VLC Bridge CrySer66.JellyfinVlcBridge 1.18.0, Screenbox Starpine.Screenbox 0.23.0, Streamlink Streamlink.Streamlink 8.6.2-2, wcap mmozeiko.wcap 2025.11.27, SubRenamer qwqcode.SubRenamer 2.4.0, tuna univrsal.tuna 1.9.11, VLC media player (Nightly) VideoLAN.VLC.Nightly 4.0.0.0-nightly20260509, Darshan Player UjjwalDadhich.Darshan 1.2.0
+Code retour: 0
+
+## Tests réels vs simulés vs non exécutés
+- Réels: npm test (2/2), cargo test --lib (21 passed/0 failed/1 ignored), cargo fmt/clippy, npm run build, npm run tauri:build avec empreintes SHA-256, smoke test exe, winget search vlc (lecture seule)
+- Simulés: aucun marqué comme réel
+- Non exécutés (interdits sur poste dev): install/uninstall/upgrade réels, tweaks registre/cleaning/AppX/tâches planifiées/UAC. Procédure: VM Windows réinitialisable avec WinGet propre, exécuter parcours critiques, capturer logs.
