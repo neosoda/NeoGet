@@ -1388,10 +1388,17 @@ fn is_valid_winget_package_id(id: &str) -> bool {
     {
         return false;
     }
-    // WinGet package IDs are typically Publisher.Product or similar, allow common safe chars
-    // Allow ASCII alnum and .-_ ; also allow non-ASCII alphanumeric for international names
+    // WinGet package IDs can include + and other chars in practice (e.g. VCRedist 2015+)
+    // Allow ASCII alnum and common safe punctuation, plus non-ASCII alphanumeric
     for c in trimmed.chars() {
-        if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+        if c.is_ascii_alphanumeric()
+            || c == '.'
+            || c == '-'
+            || c == '_'
+            || c == '+'
+            || c == '~'
+            || c == '='
+        {
             continue;
         }
         if c.is_alphanumeric() {
@@ -3453,6 +3460,9 @@ mod tests {
         assert!(is_valid_winget_package_id("VideoLAN.VLC"));
         assert!(is_valid_winget_package_id("Publisher-Name.Product_Name"));
         assert!(is_valid_winget_package_id("Tencent.QQ")); // non-ascii not required but should be fine
+        assert!(is_valid_winget_package_id("Notepad++.Notepad++"));
+        assert!(is_valid_winget_package_id("Microsoft.VCRedist.2015+.x64"));
+        assert!(is_valid_winget_package_id("Some.Package~1.0"));
         assert!(!is_valid_winget_package_id(""));
         assert!(!is_valid_winget_package_id("   "));
         assert!(!is_valid_winget_package_id("bad id with space"));
