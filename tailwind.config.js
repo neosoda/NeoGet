@@ -23,16 +23,59 @@ export default {
         'graphite-3': '#172229',
         'light-bg': '#F6F7F4',
         'dark-bg': '#071014',
+        // Tailwind v4 ships a re-derived default palette (red-500 moves from
+        // #ef4444 to #fb2c36, amber-500 from #f59e0b to #f99c00, ...). The
+        // shades below are pinned to their v3 values so the application keeps
+        // rendering exactly as before the v3 -> v4 migration.
+        amber: {
+          500: '#f59e0b',
+          600: '#d97706',
+          700: '#b45309',
+          800: '#92400e',
+        },
+        emerald: {
+          700: '#047857',
+        },
+        cyan: {
+          500: '#06b6d4',
+        },
+        red: {
+          200: '#fecaca',
+          500: '#ef4444',
+          600: '#dc2626',
+        },
+        rose: {
+          200: '#fecdd3',
+          300: '#fda4af',
+        },
+        sky: {
+          700: '#0369a1',
+        },
+        slate: {
+          300: '#cbd5e1',
+          400: '#94a3b8',
+          500: '#64748b',
+          600: '#475569',
+          700: '#334155',
+          950: '#020617',
+        },
+        teal: {
+          700: '#0f766e',
+        },
         gray: {
           150: '#EEF0F3',
           250: '#D9DEE5',
+          400: '#9ca3af',
           450: '#8994A3',
+          500: '#6b7280',
           550: '#647082',
-          650: '#485366'
+          600: '#4b5563',
+          650: '#485366',
+          900: '#111827',
         },
         zinc: {
           750: '#373A40',
-          850: '#20262D'
+          850: '#20262D',
         },
       },
       fontFamily: {
@@ -49,26 +92,6 @@ export default {
         'app-dark': 'linear-gradient(180deg, #0B1318 0%, #071014 46%, #090D10 100%)',
         'app-light': 'linear-gradient(180deg, #FBFCFA 0%, #F4F6F3 100%)',
         'soft-grid': 'linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)',
-      },
-      animation: {
-        'fade-in': 'fadeIn 0.3s ease-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'pulse-scale': 'pulseScale 0.5s ease-out',
-      },
-      keyframes: {
-        fadeIn: {
-          'from': { opacity: '0' },
-          'to': { opacity: '1' },
-        },
-        slideUp: {
-          'from': { transform: 'translateY(10px)', opacity: '0' },
-          'to': { transform: 'translateY(0)', opacity: '1' },
-        },
-        pulseScale: {
-          '0%': { transform: 'scale(1)', opacity: '1' },
-          '50%': { transform: 'scale(1.05)' },
-          '100%': { transform: 'scale(1)' },
-        },
       },
     },
   },

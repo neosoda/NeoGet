@@ -12,8 +12,54 @@
 @source "../index.html";
 @source "../software.json";
 
+/* `.surface` is registered as an @utility below and applied by `.card`. Force
+   its emission so `class="surface"` also works if it is used directly. */
+@source inline("surface");
+
 /* v3 `darkMode: 'class'` equivalent: the app toggles a `.dark` class on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Tailwind v4's @config compatibility layer ignores the v3 `animation` and
+   `keyframes` theme keys, so the design-system animations are declared here. */
+@theme {
+  --animate-fade-in: fadeIn 0.3s ease-out;
+  --animate-slide-up: slideUp 0.3s ease-out;
+  --animate-pulse-scale: pulseScale 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseScale {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 
 @layer base {
   :root {
