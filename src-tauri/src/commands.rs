@@ -761,11 +761,12 @@ async fn run_winget_install(
     }
 
     if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
-        error!(
-            "Interaction/élévation requis lors de l'installation de {} : {}",
-            name, msg
-        );
-        return Err(format!("{} : {}", name, msg));
+        error!("Interaction/élévation requis pour {} : {}", name, msg);
+        let code_str = match output.status.code() {
+            Some(c) => format!(" (code de sortie: {})", c),
+            None => String::new(),
+        };
+        return Err(format!("{} : {}{}", name, msg, code_str));
     }
 
     error!(
@@ -1833,7 +1834,11 @@ pub async fn uninstall_software(
             "Interaction/élévation requis lors de la désinstallation de {} : {}",
             name, msg
         );
-        return Err(format!("{} : {}", name, msg));
+        let code_str = match output.status.code() {
+            Some(c) => format!(" (code de sortie: {})", c),
+            None => String::new(),
+        };
+        return Err(format!("{} : {}{}", name, msg, code_str));
     }
 
     error!(
@@ -3554,6 +3559,11 @@ mod tests {
         let n1 = normalize_for_match("certificate is used in processus");
         // Do not trigger on generic word alone
         assert!(requires_interactive_or_elevation(&n1, Some(1)).is_none());
+        // Simulate log with certificate word but no precise signature
+        let log_only = normalize_for_match(
+            "downloaded certificate file but operation completed with different error",
+        );
+        assert!(requires_interactive_or_elevation(&log_only, Some(1234)).is_none());
     }
 
     #[test]
