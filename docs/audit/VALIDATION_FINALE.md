@@ -56,3 +56,10 @@
 - Un seul jeu de SHA-256 (build final):
   - neoget.exe 6524416 octets SHA256: 141BEEC1E5DB3F39EAF06007DDDEDF401589774F9C1FC87E7E0F1270624DE46F
   - NeoGet_2.3.3_x64-setup.exe 1768967 octets SHA256: 863948F2548532CDAFAFC022401156352DD823A4C90253F7B4C9529BD178DD84
+
+## Mise à jour finale (code corrigé, pas de double code)
+- Correction: helper ne suffixe plus le code, chaque caller (install/upgrade/uninstall) ajoute " (code de sortie: N)" une seule fois.
+- Tests: cargo test --lib 21 passed, 0 failed, 1 ignored
+- Build final reconstruit:
+  - neoget.exe 6524416 octets SHA256: 141BEEC1E5DB3F39EAF06007DDDEDF401589774F9C1FC87E7E0F1270624DE46F
+  - NeoGet_2.3.3_x64-setup.exe 1768967 octets SHA256: 863948F2548532CDAFAFC022401156352DD823A4C90253F7B4C9529BD178DD84

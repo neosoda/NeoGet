@@ -142,14 +142,8 @@ fn requires_interactive_or_elevation(
         || normalized_output.contains("certificate not trusted")
         || normalized_output.contains("certificat non valide")
     {
-        let suffix = match exit_code {
-            Some(c) => format!(" (code {})", c),
-            None => String::new(),
-        };
-        return Some(format!(
-            "Erreur de certificat/signature du package{}",
-            suffix
-        ));
+        let _ = exit_code;
+        return Some("Erreur de certificat/signature du package".to_string());
     }
     // Conflits MSIX/AppX deployment (signatures précises uniquement)
     if normalized_output.contains("0x80073cf6")
@@ -160,11 +154,8 @@ fn requires_interactive_or_elevation(
         || normalized_output.contains("add-appxfailed")
         || normalized_output.contains("appx operation failed")
     {
-        let suffix = match exit_code {
-            Some(c) => format!(" (code {})", c),
-            None => String::new(),
-        };
-        return Some(format!("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur{}", suffix));
+        let _ = exit_code;
+        return Some("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur".to_string());
     }
     // Annulation / interaction requise - signatures précises
     if normalized_output.contains("user cancelled")
@@ -172,14 +163,8 @@ fn requires_interactive_or_elevation(
         || normalized_output.contains("operation cancelled")
         || normalized_output.contains("annule par l'utilisateur")
     {
-        let suffix = match exit_code {
-            Some(c) => format!(" (code {})", c),
-            None => String::new(),
-        };
-        return Some(format!(
-            "Opération annulée ou interaction utilisateur requise en mode silencieux{}",
-            suffix
-        ));
+        let _ = exit_code;
+        return Some("Opération annulée ou interaction utilisateur requise en mode silencieux".to_string());
     }
     None
 }
@@ -762,9 +747,6 @@ async fn run_winget_install(
 
     if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
         error!("Interaction/élévation requis pour {} : {}", name, msg);
-        if msg.contains("code de sortie") || msg.contains("(Code") {
-            return Err(format!("{} : {}", name, msg));
-        }
         let code_str = match output.status.code() {
             Some(c) => format!(" (code de sortie: {})", c),
             None => String::new(),
@@ -1637,9 +1619,6 @@ pub async fn upgrade_software(
             "Interaction/élévation requis pour la mise à jour de {} : {}",
             name, msg
         );
-        if msg.contains("code de sortie") || msg.contains("(Code") {
-            return Err(format!("{} : {}", name, msg));
-        }
         let code_str = match code {
             Some(c) => format!(" (code de sortie: {})", c),
             None => String::new(),
@@ -1843,13 +1822,7 @@ pub async fn uninstall_software(
     }
 
     if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
-        error!(
-            "Interaction/élévation requis lors de la désinstallation de {} : {}",
-            name, msg
-        );
-        if msg.contains("code de sortie") || msg.contains("(Code") {
-            return Err(format!("{} : {}", name, msg));
-        }
+        error!("Interaction/élévation requis pour {} : {}", name, msg);
         let code_str = match output.status.code() {
             Some(c) => format!(" (code de sortie: {})", c),
             None => String::new(),
@@ -3551,7 +3524,6 @@ mod tests {
         let n3 = normalize_for_match("0x80073CF6 MSIX error");
         let m3 = requires_interactive_or_elevation(&n3, Some(1)).unwrap();
         assert!(m3.contains("MSIX"));
-        assert!(m3.contains("code"));
         let n4 = normalize_for_match("appx deployment failed");
         let m4 = requires_interactive_or_elevation(&n4, Some(1)).unwrap();
         assert!(m4.contains("MSIX"));
@@ -3567,18 +3539,14 @@ mod tests {
         let m1 = requires_interactive_or_elevation(&c1, Some(-1978335189)).unwrap();
         assert!(m1.contains("certificat"));
         assert!(!m1.contains("MSIX"));
-        assert!(m1.contains("code"));
         let c2 = normalize_for_match("Certificat non valide 0x80072f8f");
         let m2 = requires_interactive_or_elevation(&c2, Some(1)).unwrap();
         assert!(m2.contains("certificat"));
-        assert!(m2.contains("code"));
         let n1 = normalize_for_match("certificate is used in processus");
         // Do not trigger on generic word alone
         assert!(requires_interactive_or_elevation(&n1, Some(1)).is_none());
         // Simulate log with certificate word but no precise signature
-        let log_only = normalize_for_match(
-            "downloaded certificate file but operation completed with different error",
-        );
+        let log_only = normalize_for_match("downloaded certificate file but operation completed with different error");
         assert!(requires_interactive_or_elevation(&log_only, Some(1234)).is_none());
     }
 
