@@ -91,3 +91,20 @@ Justifications S-002/F-002/B-002 documentées ci-après.
 - Supprimé détection par 'cer'. Signatures MSIX/AppX uniquement: 0x80073cf6, 0x80073cf, msixbundle, appx deployment, add-appxpackage/add-appxfailed/appx operation.
 - Ajout branche certificat/signature AVANT MSIX: certificate, certificat, 0x80072f8f, signature verification, trust failure -> message spécifique sans mention MSIX.
 - Tests: positifs MSIX/certificat, négatifs processus/procédure/exacerber/operation completed -> None. Validé.
+
+## 10) Statut final des anomalies
+| ID | Gravité | Statut | Preuve |
+|---|---|---|---|
+| A-001 | MAJEUR | CORRIGÉE | force=false par défaut (2ab9d97) |
+| A-002 | MAJEUR | CORRIGÉE | requires_interactive_or_elevation signatures précises + exit code (ee7afc0/8bbb329/351807c/1576ed9/95c5a89), tests |
+| A-003 | MAJEUR | CORRIGÉE | validation IDs + caractères réels dont + (a2c6452/9f7b58d), tests Notepad++/VCRedist |
+| A-004 | MAJEUR | CORRIGÉE | timeouts GitHub 60s/300s, validation assets, exit code (2ab9d97) |
+| A-005 | MOYEN-MAJEUR | CORRIGÉE | lib.rs sans expect(), log + exit propre (a2c6452) |
+| A-006 | MINEUR-MOYEN | NON APPLICABLE | aucun défaut détecté |
+| S-001 | MOYEN | CORRIGÉE | tests injection ID/échappement (2ab9d97) |
+| S-002 | MINEUR | DOCUMENTÉE-ACCEPTÉE | CSP unsafe-inline justifié, pas d'eval/innerHTML |
+| S-003 | MINEUR | DOCUMENTÉE-ACCEPTÉE | dialog système, portée locale |
+| F-001 | MINEUR | DOCUMENTÉE-ACCEPTÉE | polling 2s de secours |
+| F-002 | MINEUR | NON VALIDÉE EN E2E | parcours UI à tester en VM (documenté) |
+| B-001 | MOYEN | CORRIGÉE | CI fmt/clippy/tests (a2c6452) |
+| B-002 | MINEUR | DOCUMENTÉE-ACCEPTÉE | artefacts historiques vs build final, hashes vérifiés |

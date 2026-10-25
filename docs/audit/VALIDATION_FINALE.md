@@ -51,7 +51,6 @@
   c6be390b fix(audit): verify all call sites compile, update docs and hashes
   33acb8a docs(audit): reconcile hashes, test counts and review status
 
-- Décision finale: APPROUVÉ (avec limites documentées)
 - Risques résiduels: install/update/uninstall réels, UAC/admin, Toolkit destructif (désactivation/restauration), E2E UI non exécutés — nécessitent VM Win10/Win11 isolée/resettable.
 - Un seul jeu de SHA-256 (build final):
   - neoget.exe 6523392 octets SHA256: CED917D5563135DA87E74EDE9027356E8DB5A323526DB8F6F2CFE9F1E2EEDF3B
