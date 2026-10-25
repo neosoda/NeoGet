@@ -86,3 +86,8 @@ Commit initial : $(git -C /c/Users/NEO.NEO-PC/.ao/data/worktrees/neoget/neoget-2
 ## 8) A-002 réellement corrigée
 Ajout de `requires_interactive_or_elevation()` avec détection explicite et journalisation error! pour cas "location required", MSIX/AppX (0x80073cf6), annulation utilisateur. Appliqué dans install/upgrade/uninstall avec messages clairs remontés à l'utilisateur. Tests unitaires ajoutés et passants.
 Justifications S-002/F-002/B-002 documentées ci-après.
+
+## 9) Correction A-002 (faux positif 'cer') - cycle 2
+- Supprimé détection par 'cer'. Signatures MSIX/AppX uniquement: 0x80073cf6, 0x80073cf, msixbundle, appx deployment, add-appxpackage/add-appxfailed/appx operation.
+- Ajout branche certificat/signature AVANT MSIX: certificate, certificat, 0x80072f8f, signature verification, trust failure -> message spécifique sans mention MSIX.
+- Tests: positifs MSIX/certificat, négatifs processus/procédure/exacerber/operation completed -> None. Validé.

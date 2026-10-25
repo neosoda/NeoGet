@@ -46,3 +46,9 @@ Version bundle: 2.3.3 x64 NSIS. Artefacts laissés en place pour vérification.
 - Node: npm test → 2 tests passés (tests/operationState.test.mjs)
 - Rust lib: cargo test --manifest-path src-tauri/Cargo.toml --lib → 19 passed, 0 failed, 1 ignored
 - Clippy/Fmt/Build frontend: tous OK comme documenté ci-dessus.
+
+## Nouvelles empreintes après recompilation (cycle 2)
+Commande: npm run tauri:build (recompilé)
+- C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe (6522880 octets, SHA256: 4488A00236E7FBA16B73B6FBA16BB06BBC2277ADC714E1546AFB02F68B2D5780)
+- C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/bundle/nsis/NeoGet_2.3.3_x64-setup.exe (1768893 octets, SHA256: B149FC68ACC53A312F1AF96C4047F0C2062ED4C2C9D60F5AD6DC1BC447877554)
+cargo test --lib: 21 passed, 0 failed, 1 ignored

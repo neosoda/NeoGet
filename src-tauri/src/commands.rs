@@ -124,6 +124,7 @@ fn already_installed_output(normalized_output: &str) -> bool {
 }
 
 fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> {
+    // Emplacement requis
     if normalized_output.contains("emplacement d'installation")
         || normalized_output.contains("location is required")
         || normalized_output.contains("installation location")
@@ -131,17 +132,31 @@ fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> 
     {
         return Some("Emplacement d'installation requis : le package exige une sélection manuelle d'emplacement.".to_string());
     }
+    // Erreurs certificat/signature (avant MSIX pour éviter tout chevauchement)
+    if normalized_output.contains("certificate")
+        || normalized_output.contains("certificat")
+        || normalized_output.contains("0x80072f8f")
+        || normalized_output.contains("signature verification")
+        || normalized_output.contains("trust failure")
+    {
+        return Some("Erreur de certificat/signature du package.".to_string());
+    }
+    // Conflits MSIX/AppX deployment (signatures précises uniquement)
     if normalized_output.contains("0x80073cf6")
-        || normalized_output.contains("msix")
-        || normalized_output.contains("appx")
-        || normalized_output.contains("cer")
+        || normalized_output.contains("0x80073cf")
+        || normalized_output.contains("msixbundle")
+        || normalized_output.contains("appx deployment")
+        || normalized_output.contains("add-appxpackage")
+        || normalized_output.contains("add-appxfailed")
+        || normalized_output.contains("appx operation")
     {
         return Some("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur.".to_string());
     }
+    // Annulation / interaction requise
     if normalized_output.contains("user cancelled")
-        || normalized_output.contains("annule")
         || normalized_output.contains("cancelled by user")
         || normalized_output.contains("cancelled")
+        || normalized_output.contains("operation cancelled")
     {
         return Some(
             "Opération annulée ou interaction utilisateur requise en mode silencieux.".to_string(),
@@ -3472,11 +3487,42 @@ mod tests {
         let n2 = normalize_for_match("Location is required");
         assert!(requires_interactive_or_elevation(&n2).is_some());
         let n3 = normalize_for_match("0x80073CF6 MSIX error");
-        assert!(requires_interactive_or_elevation(&n3).is_some());
-        let n4 = normalize_for_match("User cancelled");
-        assert!(requires_interactive_or_elevation(&n4).is_some());
-        let n5 = normalize_for_match("operation completed successfully");
-        assert!(requires_interactive_or_elevation(&n5).is_none());
+        let m3 = requires_interactive_or_elevation(&n3).unwrap();
+        assert!(m3.contains("MSIX"));
+        let n4 = normalize_for_match("appx deployment failed");
+        let m4 = requires_interactive_or_elevation(&n4).unwrap();
+        assert!(m4.contains("MSIX"));
+        let n5 = normalize_for_match("User cancelled");
+        assert!(requires_interactive_or_elevation(&n5).is_some());
+        let n6 = normalize_for_match("operation completed successfully");
+        assert!(requires_interactive_or_elevation(&n6).is_none());
+    }
+
+    #[test]
+    fn requires_interactive_or_elevation_certificate_vs_msix() {
+        let c1 = normalize_for_match("certificate validation failed");
+        let m1 = requires_interactive_or_elevation(&c1).unwrap();
+        assert!(m1.contains("certificat"));
+        assert!(!m1.contains("MSIX"));
+        let c2 = normalize_for_match("Certificat invalide 0x80072f8f");
+        let m2 = requires_interactive_or_elevation(&c2).unwrap();
+        assert!(m2.contains("certificat"));
+        let n1 = normalize_for_match("certificate is used in processus");
+        // Should be certificate branch? "certificate" present -> certificat branch
+        let m3 = requires_interactive_or_elevation(&n1).unwrap();
+        assert!(m3.contains("certificat"));
+    }
+
+    #[test]
+    fn requires_interactive_or_elevation_no_false_positive_cer() {
+        let t1 = normalize_for_match("processus en cours");
+        assert!(requires_interactive_or_elevation(&t1).is_none());
+        let t2 = normalize_for_match("procédure terminée");
+        assert!(requires_interactive_or_elevation(&t2).is_none());
+        let t3 = normalize_for_match("exacerber le problème");
+        assert!(requires_interactive_or_elevation(&t3).is_none());
+        let t4 = normalize_for_match("operation completed successfully");
+        assert!(requires_interactive_or_elevation(&t4).is_none());
     }
 
     #[test]
