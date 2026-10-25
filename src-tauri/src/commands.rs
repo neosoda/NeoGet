@@ -132,12 +132,12 @@ fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> 
     {
         return Some("Emplacement d'installation requis : le package exige une sélection manuelle d'emplacement.".to_string());
     }
-    // Erreurs certificat/signature (avant MSIX pour éviter tout chevauchement)
-    if normalized_output.contains("certificate")
-        || normalized_output.contains("certificat")
-        || normalized_output.contains("0x80072f8f")
-        || normalized_output.contains("signature verification")
+    // Erreurs certificat/signature (signatures précises uniquement)
+    if normalized_output.contains("0x80072f8f")
+        || normalized_output.contains("signature verification failed")
         || normalized_output.contains("trust failure")
+        || normalized_output.contains("certificate not trusted")
+        || normalized_output.contains("certificat non")
     {
         return Some("Erreur de certificat/signature du package.".to_string());
     }
@@ -148,15 +148,15 @@ fn requires_interactive_or_elevation(normalized_output: &str) -> Option<String> 
         || normalized_output.contains("appx deployment")
         || normalized_output.contains("add-appxpackage")
         || normalized_output.contains("add-appxfailed")
-        || normalized_output.contains("appx operation")
+        || normalized_output.contains("appx operation failed")
     {
         return Some("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur.".to_string());
     }
-    // Annulation / interaction requise
+    // Annulation / interaction requise - signatures précises
     if normalized_output.contains("user cancelled")
         || normalized_output.contains("cancelled by user")
-        || normalized_output.contains("cancelled")
         || normalized_output.contains("operation cancelled")
+        || normalized_output.contains("annule par l'utilisateur")
     {
         return Some(
             "Opération annulée ou interaction utilisateur requise en mode silencieux.".to_string(),
@@ -3511,17 +3511,16 @@ mod tests {
 
     #[test]
     fn requires_interactive_or_elevation_certificate_vs_msix() {
-        let c1 = normalize_for_match("certificate validation failed");
+        let c1 = normalize_for_match("Signature verification failed");
         let m1 = requires_interactive_or_elevation(&c1).unwrap();
         assert!(m1.contains("certificat"));
         assert!(!m1.contains("MSIX"));
-        let c2 = normalize_for_match("Certificat invalide 0x80072f8f");
+        let c2 = normalize_for_match("Certificat non valide 0x80072f8f");
         let m2 = requires_interactive_or_elevation(&c2).unwrap();
         assert!(m2.contains("certificat"));
         let n1 = normalize_for_match("certificate is used in processus");
-        // Should be certificate branch? "certificate" present -> certificat branch
-        let m3 = requires_interactive_or_elevation(&n1).unwrap();
-        assert!(m3.contains("certificat"));
+        // Do not trigger on generic word alone
+        assert!(requires_interactive_or_elevation(&n1).is_none());
     }
 
     #[test]
@@ -3534,6 +3533,11 @@ mod tests {
         assert!(requires_interactive_or_elevation(&t3).is_none());
         let t4 = normalize_for_match("operation completed successfully");
         assert!(requires_interactive_or_elevation(&t4).is_none());
+        let t5 = normalize_for_match("certificate is mentioned in log");
+        assert!(requires_interactive_or_elevation(&t5).is_none());
+        let t6 = normalize_for_match("installation cancelled in unrelated step");
+        // cancelled alone without user cancelled/operation cancelled/annule par l'utilisateur
+        assert!(requires_interactive_or_elevation(&t6).is_none());
     }
 
     #[test]
