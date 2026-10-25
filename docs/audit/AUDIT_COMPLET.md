@@ -76,3 +76,9 @@ Commit initial : $(git -C /c/Users/NEO.NEO-PC/.ao/data/worktrees/neoget/neoget-2
 - E2E Tauri (démarrage app complet) non exécutés en environnement CI Linux-like.
 - Tests UI/React (composants/hooks) manquants.
 - Scénarios réels admin/UAC, AppX, nettoyage, tâches planifiées à valider sur Win10/Win11.
+
+## 7) Corrections complémentaires (suite PR feedback)
+- A-001: `upgrade_software` force par défaut changé de true à false. Tests Rust OK.
+- A-004: `install_winget` durci (timeouts Invoke-RestMethod/Invoke-WebRequest, validation assets/taille, stderr/stdout, exit 1 en cas d'erreur). Messages plus explicites.
+- A-002/S-001: Renforcement parsing/validation IDs WinGet + tests injection/échappement PowerShell ajoutés (18 tests Rust passés). Validation IDs autorise désormais caractères alphanumériques non-ASCII légitimes tout en bloquant injection.
+- CI/tous les tests obligatoires relancés avec succès.

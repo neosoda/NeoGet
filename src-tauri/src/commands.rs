@@ -1123,16 +1123,20 @@ pub async fn install_winget(manager: State<'_, OperationManager>) -> Result<Stri
     let script = r#"
 $ProgressPreference = 'SilentlyContinue'
 try {
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
-    $msixUrl = ($response.assets | Where-Object { $_.name -like "*.msixbundle" })[0].browser_download_url
-    if (-not $msixUrl) { throw "Impossible de trouver l'URL de telechargement" }
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -TimeoutSec 60
+    if (-not $response -or -not $response.assets) { throw "Réponse GitHub invalide ou sans assets" }
+    $msixAsset = $response.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1
+    if (-not $msixAsset -or -not $msixAsset.browser_download_url) { throw "Impossible de trouver l'URL de telechargement du MSIXBundle WinGet" }
+    $msixUrl = $msixAsset.browser_download_url
     $tempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'winget.msixbundle')
-    Invoke-WebRequest -Uri $msixUrl -OutFile $tempFile
-    Add-AppxPackage -Path $tempFile -ForceApplicationShutdown
+    Invoke-WebRequest -Uri $msixUrl -OutFile $tempFile -TimeoutSec 300
+    if (-not (Test-Path $tempFile) -or (Get-Item $tempFile).Length -lt 1MB) { throw "Téléchargement WinGet incomplet ou vide" }
+    Add-AppxPackage -Path $tempFile -ForceApplicationShutdown -ErrorAction Stop
     Remove-Item $tempFile -ErrorAction SilentlyContinue
     Write-Output "SUCCESS"
 } catch {
     Write-Error $_.Exception.Message
+    exit 1
 }
 "#;
 
@@ -1146,14 +1150,22 @@ try {
     .await?;
 
     let stdout = decode_command_output(&output.stdout);
-    if stdout.contains("SUCCESS") {
+    let stderr = decode_command_output(&output.stderr);
+    if stdout.contains("SUCCESS") && output.status.success() {
         info!("Installation de WinGet reussie.");
         return Ok("WinGet a ete installe avec succes a la derniere version.".to_string());
     }
 
-    let err_str = decode_command_output(&output.stderr);
+    let err_str = if stderr.trim().is_empty() {
+        stdout
+    } else {
+        stderr
+    };
     error!("Echec de l'installation de WinGet : {}", err_str);
-    Err(format!("Erreur d'installation : {}", err_str))
+    Err(format!(
+        "Erreur d'installation de WinGet (timeout/réseau/protection) : {}",
+        err_str.trim()
+    ))
 }
 
 #[tauri::command]
@@ -1327,10 +1339,12 @@ fn is_valid_winget_package_id(id: &str) -> bool {
         return false;
     }
     // WinGet package IDs are typically Publisher.Product or similar, allow common safe chars
-    let bytes = trimmed.as_bytes();
-    for &b in bytes.iter() {
-        let c = b as char;
+    // Allow ASCII alnum and .-_ ; also allow non-ASCII alphanumeric for international names
+    for c in trimmed.chars() {
         if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+            continue;
+        }
+        if c.is_alphanumeric() {
             continue;
         }
         return false;
@@ -1484,7 +1498,7 @@ pub async fn upgrade_software(
     for arg in build_winget_runtime_args(mode.as_deref()) {
         cmd.arg(arg);
     }
-    if force.unwrap_or(true) {
+    if force.unwrap_or(false) {
         cmd.arg("--force");
     }
 
@@ -3385,6 +3399,8 @@ mod tests {
         assert!(is_valid_winget_package_id("Microsoft.VisualStudioCode"));
         assert!(is_valid_winget_package_id("Mozilla.Firefox"));
         assert!(is_valid_winget_package_id("VideoLAN.VLC"));
+        assert!(is_valid_winget_package_id("Publisher-Name.Product_Name"));
+        assert!(is_valid_winget_package_id("Tencent.QQ")); // non-ascii not required but should be fine
         assert!(!is_valid_winget_package_id(""));
         assert!(!is_valid_winget_package_id("   "));
         assert!(!is_valid_winget_package_id("bad id with space"));
@@ -3393,6 +3409,23 @@ mod tests {
         assert!(!is_valid_winget_package_id("disponible"));
         assert!(!is_valid_winget_package_id("available"));
         assert!(!is_valid_winget_package_id("Aucun"));
+        assert!(!is_valid_winget_package_id("aucun"));
+    }
+
+    #[test]
+    fn escape_powershell_single_quoted_escapes_quotes() {
+        assert_eq!(escape_powershell_single_quoted("hello"), "hello");
+        assert_eq!(escape_powershell_single_quoted("it's"), "it''s");
+        assert_eq!(escape_powershell_single_quoted("a'b\"c"), "a''b\"c");
+    }
+
+    #[test]
+    fn winget_id_validation_blocks_injection_like_strings() {
+        assert!(!is_valid_winget_package_id("Test;whoami"));
+        assert!(!is_valid_winget_package_id("Test|cmd"));
+        assert!(!is_valid_winget_package_id("Test&calc"));
+        assert!(!is_valid_winget_package_id("Test`whoami"));
+        assert!(!is_valid_winget_package_id("Test$(whoami)"));
     }
 
     #[test]

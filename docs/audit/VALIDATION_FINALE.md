@@ -19,3 +19,10 @@
 
 ## Décision
 **APPROUVÉ AVEC RÉSERVES** - Build production OK, tests obligatoires passent, pas de bug critique-majeur ouvert après corrections. Les réserves sont liées à l'environnement (tests live Windows/WinGet) et nécessitent validation sur cible réelle avant release. Aucune régression introduite par les corrections.
+
+## Mise à jour après corrections complémentaires
+- PR #8 ouvert depuis audit/integral-neoget vers main.
+- A-001 corrigé (force=false par défaut). A-004 corrigé (timeouts + validation + gestion erreur). A-002 renforcé avec tests.
+- Tests obligatoires: npm test OK, cargo fmt/clippy/test OK, npm run build OK.
+- Risques résiduels réduits; validation live WinGet/E2E encore nécessaire sur Windows cible.
+- Statut: **APPROUVÉ AVEC RÉSERVES** (plus de majeurs ouverts après corrections; validations environnementales restantes documentées).
