@@ -4,6 +4,32 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [2.3.4] — 2026-10-25
+
+### 🐛 Corrections WinGet
+- **Mise à jour sans `--force`** : le forçage n'est plus appliqué par défaut lors d'un `upgrade`, ce qui évite les réinstallations inutiles et les échecs sur les paquets déjà à jour.
+- **Timeouts réseau explicites** : délais de 60 s pour les appels de métadonnées et 300 s pour les téléchargements GitHub, avec validation des assets attendus et propagation des codes de sortie réels.
+- **Classification des échecs affinée** : distinction précise des erreurs de certificat, des paquets MSIX et des annulations utilisateur, sans faux positifs.
+- **Validation des identifiants assouplie** : les caractères réellement présents dans les identifiants WinGet (dont `+`) sont acceptés, sans relâcher les contrôles de sécurité.
+
+### 🔧 Fiabilisation opérationnelle
+- **File d'opérations** : exécution séquentielle consolidée avec déduplication stricte des demandes.
+- **Réconciliation d'état** : le frontend resynchronise l'état de la file après reconnexion ou rafraîchissement.
+
+### 🩹 Gestion des erreurs
+- **Démarrage Tauri** : suppression des paniques au lancement, y compris en cas de ressource indisponible.
+- **Messages d'erreur exploitables** : le code de sortie du processus est remonté avec le message, et les erreurs sont propagées clairement jusqu'à l'interface.
+
+### 🔒 Sécurité
+- **Tests d'injection PowerShell** : ajout de cas couvrant les tentatives d'injection sur les identifiants et arguments.
+- **Échappement vérifié** : couverture automatisée de l'échappement des valeurs injectées dans les scripts.
+
+### 🧪 Tests & CI
+- **CI complète** : `cargo fmt --check`, `cargo clippy -D warnings`, les tests Rust et les tests Node s'exécutent dans GitHub Actions.
+- **Couverture** : 22 tests Rust (dont 21 exécutés) et la suite de tests Node.
+
+---
+
 ## [2.3.3] — 2026-10-18
 
 ### 🐛 Correctifs & Améliorations
