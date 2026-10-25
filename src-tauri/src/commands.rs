@@ -164,7 +164,9 @@ fn requires_interactive_or_elevation(
         || normalized_output.contains("annule par l'utilisateur")
     {
         let _ = exit_code;
-        return Some("Opération annulée ou interaction utilisateur requise en mode silencieux".to_string());
+        return Some(
+            "Opération annulée ou interaction utilisateur requise en mode silencieux".to_string(),
+        );
     }
     None
 }
@@ -3546,7 +3548,9 @@ mod tests {
         // Do not trigger on generic word alone
         assert!(requires_interactive_or_elevation(&n1, Some(1)).is_none());
         // Simulate log with certificate word but no precise signature
-        let log_only = normalize_for_match("downloaded certificate file but operation completed with different error");
+        let log_only = normalize_for_match(
+            "downloaded certificate file but operation completed with different error",
+        );
         assert!(requires_interactive_or_elevation(&log_only, Some(1234)).is_none());
     }
 
