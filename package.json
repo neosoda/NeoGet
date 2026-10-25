@@ -12,7 +12,7 @@
     "tauri:dev": "tauri dev",
     "tauri:nowatch": "tauri dev --no-watch",
     "launch": "npm run build && tauri dev --no-watch",
-    "tauri:build": "tauri build && node -e \"const fs = require('fs'), path = require('path'), cp = require('child_process'); try { cp.execSync('taskkill /F /IM NeoGet.exe', {stdio:'ignore'}); } catch(e){} const candidates = [path.join(process.env.USERPROFILE || '', '.cargo/target/neoget/release/neoget.exe'), 'C:/Users/NEO.NEO-PC/.cargo/target/neoget/release/neoget.exe', 'src-tauri/target/release/neoget.exe', 'target/release/neoget.exe']; const srcExe = candidates.find(p => fs.existsSync(p)); if (srcExe) { fs.copyFileSync(srcExe, './NeoGet.exe'); } else { console.warn('Warning: release executable not found among candidates.'); }\""
+    "tauri:build": "tauri build && node scripts/copy-release-exe.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
