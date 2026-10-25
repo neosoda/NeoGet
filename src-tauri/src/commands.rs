@@ -1383,9 +1383,10 @@ fn is_valid_winget_package_id(id: &str) -> bool {
         || l.contains("épingle")
         || l.contains("epingle")
         || l.contains("pinned")
-        || l.contains("aucun")
-        || l.contains("none")
     {
+        return false;
+    }
+    if l == "aucun" || l == "none" {
         return false;
     }
     // WinGet package IDs can include + and other chars in practice (e.g. VCRedist 2015+)
