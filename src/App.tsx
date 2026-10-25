@@ -550,7 +550,7 @@ function App() {
               animate={{ opacity: 0.62 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMinimized(true)}
-              className="fixed inset-0 z-[1000] bg-black backdrop-blur-sm"
+              className="fixed inset-0 z-[1000] bg-black backdrop-blur-xs"
             />
             <motion.aside
               initial={{ x: '100%' }}

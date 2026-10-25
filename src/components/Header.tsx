@@ -47,7 +47,7 @@ export default function Header({
 
         <button
           onClick={onOpenCommand}
-          className="hidden min-w-[280px] items-center justify-between rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-left text-sm font-semibold text-slate-500 shadow-sm transition hover:bg-white dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-400 dark:hover:bg-white/[0.085] lg:flex"
+          className="hidden min-w-[280px] items-center justify-between rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-left text-sm font-semibold text-slate-500 shadow-xs transition hover:bg-white dark:border-white/10 dark:bg-white/[0.055] dark:text-slate-400 dark:hover:bg-white/[0.085] lg:flex"
           type="button"
         >
           <span className="flex items-center gap-2">

@@ -6,7 +6,6 @@ node_modules/
 # Tauri/Rust builds
 src-tauri/target/
 target/
-Cargo.lock
 
 # Build outputs
 dist/
@@ -14,6 +13,10 @@ build/
 *.tsbuildinfo
 *.rlib
 *.rmeta
+
+# Legacy `tsc -b` output of vite.config.ts: the .ts source is authoritative
+vite.config.js
+vite.config.d.ts
 
 # IDE
 .vscode/

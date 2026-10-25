@@ -17,7 +17,9 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Vite 8 requires Node ^20.19.0 || >=22.12.0; 24 is the current LTS
+          # and the version used for local development.
+          node-version: 24
           cache: npm
 
       - name: Setup Rust toolchain
@@ -29,6 +31,27 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
+
+      - name: Audit Rust dependencies
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: src-tauri
+          # RUSTSEC-2024-0429: glib < 0.20 unsound Iterator impls. Linux-only
+          #   dependency (Tauri's GTK stack), absent from the Windows build
+          #   graph, and unfixable here: tauri 2.12 pins gtk ^0.18, which
+          #   requires glib ^0.18 and no patched 0.18.x exists.
+          # RUSTSEC-2024-0370: proc-macro-error is unmaintained. Build-time
+          #   only, no vulnerability and no patched release available.
+          ignore: RUSTSEC-2024-0429,RUSTSEC-2024-0370
+
+      - name: Node tests
+        run: npm test
+        env:
+          CI: true
+
       - name: Build frontend
         run: npm run build
 
@@ -38,24 +61,19 @@ jobs:
           CARGO_TARGET_DIR: src-tauri/target
 
       - name: Rust clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
         env:
           CARGO_TARGET_DIR: src-tauri/target
 
       - name: Rust check
-        run: cargo check --manifest-path src-tauri/Cargo.toml
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked
         env:
           CARGO_TARGET_DIR: src-tauri/target
 
       - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
         env:
           CARGO_TARGET_DIR: src-tauri/target
-
-      - name: Node tests
-        run: npm test
-        env:
-          CI: true
 
       - name: Build Tauri app
         run: npm run tauri:build
