@@ -6,7 +6,6 @@ node_modules/
 # Tauri/Rust builds
 src-tauri/target/
 target/
-Cargo.lock
 
 # Build outputs
 dist/
