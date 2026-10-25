@@ -1,8 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&family=Fira+Code:wght@500;600&display=swap');
+@import "tailwindcss" source(none);
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Keep the existing JS theme (colors, fonts, shadows, keyframes) as the source
+   of truth instead of duplicating it as CSS @theme variables. */
+@config "../tailwind.config.js";
+
+/* Sources are pinned explicitly: v4 would otherwise scan the whole tree,
+   including docs/*.md. software.json is listed on purpose - the app imports it
+   and applies the Tailwind gradient classes it contains at runtime. */
+@source "./**/*.{ts,tsx}";
+@source "../index.html";
+@source "../software.json";
+
+/* v3 `darkMode: 'class'` equivalent: the app toggles a `.dark` class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   :root {
@@ -11,6 +22,14 @@
 
   * {
     box-sizing: border-box;
+  }
+
+  /* Tailwind v4 changed the default border color from gray-200 to currentColor.
+     Restoring it keeps bare `border` utilities rendering as they did in v3. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-gray-200);
   }
 
   html {
@@ -69,6 +88,10 @@
   }
 }
 
+@utility surface {
+  @apply rounded-lg border border-slate-200/80 bg-white/[0.82] shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.055] dark:shadow-soft-dark;
+}
+
 @layer components {
   .app-bg {
     @apply bg-app-light dark:bg-app-dark;
@@ -86,10 +109,6 @@
     background-image:
       linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  }
-
-  .surface {
-    @apply rounded-lg border border-slate-200/80 bg-white/[0.82] shadow-soft backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.055] dark:shadow-soft-dark;
   }
 
   .surface-soft {

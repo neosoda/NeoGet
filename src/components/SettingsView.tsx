@@ -271,7 +271,7 @@ export default function SettingsView({ onUpgradeBatch, hasActiveOperations }: { 
                         onClick={() => setInstallMode(value as 'silent' | 'interactive')}
                         className={`rounded-md px-3 py-2 text-sm font-bold transition ${
                           installMode === value
-                            ? 'bg-white text-slate-950 shadow-sm dark:bg-white dark:text-slate-950'
+                            ? 'bg-white text-slate-950 shadow-xs dark:bg-white dark:text-slate-950'
                             : 'text-slate-500 hover:text-slate-950 dark:hover:text-white'
                         }`}
                       >

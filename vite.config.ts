@@ -1,12 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
-
-// Normalize to forward slashes for chokidar compatibility on Windows
-const tauriTargetDir = path.resolve(__dirname, 'src-tauri', 'target').replace(/\\/g, '/')
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   base: './',
   clearScreen: false,
   server: {
@@ -22,7 +19,9 @@ export default defineConfig({
   },
   build: {
     target: ['es2021', 'chrome100', 'safari13'],
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
+    // Vite 8 minifies with Oxc by default; `minify: 'esbuild'` is deprecated
+    // and would require re-adding esbuild as an explicit devDependency.
+    minify: !process.env.TAURI_DEBUG,
     sourcemap: !!process.env.TAURI_DEBUG,
   },
 })

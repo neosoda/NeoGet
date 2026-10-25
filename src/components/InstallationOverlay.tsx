@@ -25,7 +25,7 @@ export default function InstallationOverlay({ onClose, batchStatus }: Installati
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+        className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center"
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
