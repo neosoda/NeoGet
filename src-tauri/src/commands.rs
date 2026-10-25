@@ -123,6 +123,54 @@ fn already_installed_output(normalized_output: &str) -> bool {
         || normalized_output.contains("no newer package versions are available")
 }
 
+fn requires_interactive_or_elevation(
+    normalized_output: &str,
+    exit_code: Option<i32>,
+) -> Option<String> {
+    // Emplacement requis
+    if normalized_output.contains("emplacement d'installation")
+        || normalized_output.contains("location is required")
+        || normalized_output.contains("installation location")
+        || normalized_output.contains("select an installation location")
+    {
+        return Some("Emplacement d'installation requis : le package exige une sélection manuelle d'emplacement.".to_string());
+    }
+    // Erreurs certificat/signature (signatures précises uniquement, éviter faux positifs)
+    if normalized_output.contains("0x80072f8f")
+        || normalized_output.contains("signature verification failed")
+        || normalized_output.contains("trust failure")
+        || normalized_output.contains("certificate not trusted")
+        || normalized_output.contains("certificat non valide")
+    {
+        let _ = exit_code;
+        return Some("Erreur de certificat/signature du package".to_string());
+    }
+    // Conflits MSIX/AppX deployment (signatures précises uniquement)
+    if normalized_output.contains("0x80073cf6")
+        || normalized_output.contains("0x80073cf")
+        || normalized_output.contains("msixbundle")
+        || normalized_output.contains("appx deployment")
+        || normalized_output.contains("add-appxpackage")
+        || normalized_output.contains("add-appxfailed")
+        || normalized_output.contains("appx operation failed")
+    {
+        let _ = exit_code;
+        return Some("Conflit MSIX/AppX détecté. Fermez les applications associées et relancez en tant qu'administrateur".to_string());
+    }
+    // Annulation / interaction requise - signatures précises
+    if normalized_output.contains("user cancelled")
+        || normalized_output.contains("cancelled by user")
+        || normalized_output.contains("operation cancelled")
+        || normalized_output.contains("annule par l'utilisateur")
+    {
+        let _ = exit_code;
+        return Some(
+            "Opération annulée ou interaction utilisateur requise en mode silencieux".to_string(),
+        );
+    }
+    None
+}
+
 fn no_winget_result(normalized_output: &str) -> bool {
     normalized_output.contains("no package found matching input criteria")
         || normalized_output.contains("no installed package found")
@@ -699,6 +747,15 @@ async fn run_winget_install(
         ));
     }
 
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
+        error!("Interaction/élévation requis pour {} : {}", name, msg);
+        let code_str = match output.status.code() {
+            Some(c) => format!(" (code de sortie: {})", c),
+            None => String::new(),
+        };
+        return Err(format!("{} : {}{}", name, msg, code_str));
+    }
+
     error!(
         "Echec de l'installation de {} (Code: {})",
         name,
@@ -1123,16 +1180,20 @@ pub async fn install_winget(manager: State<'_, OperationManager>) -> Result<Stri
     let script = r#"
 $ProgressPreference = 'SilentlyContinue'
 try {
-    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
-    $msixUrl = ($response.assets | Where-Object { $_.name -like "*.msixbundle" })[0].browser_download_url
-    if (-not $msixUrl) { throw "Impossible de trouver l'URL de telechargement" }
+    $response = Invoke-RestMethod -Uri "https://api.github.com/repos/microsoft/winget-cli/releases/latest" -TimeoutSec 60
+    if (-not $response -or -not $response.assets) { throw "Réponse GitHub invalide ou sans assets" }
+    $msixAsset = $response.assets | Where-Object { $_.name -like "*.msixbundle" } | Select-Object -First 1
+    if (-not $msixAsset -or -not $msixAsset.browser_download_url) { throw "Impossible de trouver l'URL de telechargement du MSIXBundle WinGet" }
+    $msixUrl = $msixAsset.browser_download_url
     $tempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), 'winget.msixbundle')
-    Invoke-WebRequest -Uri $msixUrl -OutFile $tempFile
-    Add-AppxPackage -Path $tempFile -ForceApplicationShutdown
+    Invoke-WebRequest -Uri $msixUrl -OutFile $tempFile -TimeoutSec 300
+    if (-not (Test-Path $tempFile) -or (Get-Item $tempFile).Length -lt 1MB) { throw "Téléchargement WinGet incomplet ou vide" }
+    Add-AppxPackage -Path $tempFile -ForceApplicationShutdown -ErrorAction Stop
     Remove-Item $tempFile -ErrorAction SilentlyContinue
     Write-Output "SUCCESS"
 } catch {
     Write-Error $_.Exception.Message
+    exit 1
 }
 "#;
 
@@ -1146,14 +1207,22 @@ try {
     .await?;
 
     let stdout = decode_command_output(&output.stdout);
-    if stdout.contains("SUCCESS") {
+    let stderr = decode_command_output(&output.stderr);
+    if stdout.contains("SUCCESS") && output.status.success() {
         info!("Installation de WinGet reussie.");
         return Ok("WinGet a ete installe avec succes a la derniere version.".to_string());
     }
 
-    let err_str = decode_command_output(&output.stderr);
+    let err_str = if stderr.trim().is_empty() {
+        stdout
+    } else {
+        stderr
+    };
     error!("Echec de l'installation de WinGet : {}", err_str);
-    Err(format!("Erreur d'installation : {}", err_str))
+    Err(format!(
+        "Erreur d'installation de WinGet (timeout/réseau/protection) : {}",
+        err_str.trim()
+    ))
 }
 
 #[tauri::command]
@@ -1304,7 +1373,12 @@ fn is_valid_winget_package_id(id: &str) -> bool {
     if trimmed.is_empty() || trimmed.len() < 2 {
         return false;
     }
-    if trimmed.contains(' ') || trimmed.contains('\t') || trimmed.contains("...") {
+    if trimmed.contains(' ')
+        || trimmed.contains('\t')
+        || trimmed.contains('\n')
+        || trimmed.contains('\r')
+        || trimmed.contains("...")
+    {
         return false;
     }
     if trimmed.starts_with('(') || trimmed.starts_with(')') || trimmed.ends_with('.') {
@@ -1314,8 +1388,34 @@ fn is_valid_winget_package_id(id: &str) -> bool {
     if l.contains("disponible")
         || l.contains("available")
         || l.contains("épingle")
+        || l.contains("epingle")
         || l.contains("pinned")
     {
+        return false;
+    }
+    // Whole-token equality only for blacklist heuristics
+    if l == "aucun" || l == "none" {
+        return false;
+    }
+    // WinGet package IDs can include + and other chars in practice (e.g. VCRedist 2015+, Notepad++)
+    // Allow ASCII alnum and common safe punctuation used by WinGet, plus non-ASCII alphanumeric
+    // Argument passing/escaping elsewhere prevents shell injection
+    for c in trimmed.chars() {
+        if c.is_ascii_alphanumeric()
+            || c == '.'
+            || c == '-'
+            || c == '_'
+            || c == '+'
+            || c == '~'
+            || c == '='
+            || c == '#'
+            || c == ':'
+        {
+            continue;
+        }
+        if c.is_alphanumeric() {
+            continue;
+        }
         return false;
     }
     true
@@ -1467,7 +1567,7 @@ pub async fn upgrade_software(
     for arg in build_winget_runtime_args(mode.as_deref()) {
         cmd.arg(arg);
     }
-    if force.unwrap_or(true) {
+    if force.unwrap_or(false) {
         cmd.arg("--force");
     }
 
@@ -1515,15 +1615,17 @@ pub async fn upgrade_software(
         ));
     }
 
-    if normalized_output.contains("emplacement d'installation")
-        || normalized_output.contains("location is required")
-        || normalized_output.contains("installation location")
-    {
-        error!("Emplacement d'installation requis pour {}", name);
-        return Err(format!(
-            "{} nécessite la spécification manuelle d'un emplacement d'installation par l'éditeur.",
-            name
-        ));
+    let code = output.status.code();
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output, code) {
+        error!(
+            "Interaction/élévation requis pour la mise à jour de {} : {}",
+            name, msg
+        );
+        let code_str = match code {
+            Some(c) => format!(" (code de sortie: {})", c),
+            None => String::new(),
+        };
+        return Err(format!("{} : {}{}", name, msg, code_str));
     }
 
     error!(
@@ -1719,6 +1821,15 @@ pub async fn uninstall_software(
             "Erreur de privilèges : relancez NeoGet en tant qu'administrateur pour désinstaller {}.",
             name
         ));
+    }
+
+    if let Some(msg) = requires_interactive_or_elevation(&normalized_output, output.status.code()) {
+        error!("Interaction/élévation requis pour {} : {}", name, msg);
+        let code_str = match output.status.code() {
+            Some(c) => format!(" (code de sortie: {})", c),
+            None => String::new(),
+        };
+        return Err(format!("{} : {}{}", name, msg, code_str));
     }
 
     error!(
@@ -3361,6 +3472,105 @@ mod tests {
         assert!(privilege_error_output("access is denied"));
         assert!(privilege_error_output("droits administrateur requis"));
         assert!(!privilege_error_output("operation completed"));
+    }
+
+    #[test]
+    fn is_valid_winget_package_id_rejects_invalid_and_accepts_valid() {
+        assert!(is_valid_winget_package_id("Microsoft.VisualStudioCode"));
+        assert!(is_valid_winget_package_id("Mozilla.Firefox"));
+        assert!(is_valid_winget_package_id("VideoLAN.VLC"));
+        assert!(is_valid_winget_package_id("Publisher-Name.Product_Name"));
+        assert!(is_valid_winget_package_id("Tencent.QQ")); // non-ascii not required but should be fine
+        assert!(is_valid_winget_package_id("Notepad++.Notepad++"));
+        assert!(is_valid_winget_package_id("Microsoft.VCRedist.2015+.x64"));
+        assert!(is_valid_winget_package_id("Some.Package~1.0"));
+        assert!(is_valid_winget_package_id(
+            "Microsoft.WindowsTerminalPreview"
+        )); // ensure no false positive
+        assert!(is_valid_winget_package_id("Some.NonePackage")); // contains none but not exact token
+        assert!(is_valid_winget_package_id("AucunPlus.Un")); // contains aucun but not exact
+        assert!(!is_valid_winget_package_id(""));
+        assert!(!is_valid_winget_package_id("   "));
+        assert!(!is_valid_winget_package_id("bad id with space"));
+        assert!(!is_valid_winget_package_id("(bad)"));
+        assert!(!is_valid_winget_package_id("test."));
+        assert!(!is_valid_winget_package_id("disponible"));
+        assert!(!is_valid_winget_package_id("available"));
+        assert!(!is_valid_winget_package_id("Aucun"));
+        assert!(!is_valid_winget_package_id("aucun"));
+        assert!(!is_valid_winget_package_id("none"));
+    }
+
+    #[test]
+    fn escape_powershell_single_quoted_escapes_quotes() {
+        assert_eq!(escape_powershell_single_quoted("hello"), "hello");
+        assert_eq!(escape_powershell_single_quoted("it's"), "it''s");
+        assert_eq!(escape_powershell_single_quoted("a'b\"c"), "a''b\"c");
+    }
+
+    #[test]
+    fn winget_id_validation_blocks_injection_like_strings() {
+        assert!(!is_valid_winget_package_id("Test;whoami"));
+        assert!(!is_valid_winget_package_id("Test|cmd"));
+        assert!(!is_valid_winget_package_id("Test&calc"));
+        assert!(!is_valid_winget_package_id("Test`whoami"));
+        assert!(!is_valid_winget_package_id("Test$(whoami)"));
+    }
+
+    #[test]
+    fn requires_interactive_or_elevation_detects_signatures() {
+        let n1 = normalize_for_match("Emplacement d'installation requis");
+        assert!(requires_interactive_or_elevation(&n1, Some(1)).is_some());
+        let n2 = normalize_for_match("Location is required");
+        assert!(requires_interactive_or_elevation(&n2, Some(1)).is_some());
+        let n3 = normalize_for_match("0x80073CF6 MSIX error");
+        let m3 = requires_interactive_or_elevation(&n3, Some(1)).unwrap();
+        assert!(m3.contains("MSIX"));
+        let n4 = normalize_for_match("appx deployment failed");
+        let m4 = requires_interactive_or_elevation(&n4, Some(1)).unwrap();
+        assert!(m4.contains("MSIX"));
+        let n5 = normalize_for_match("User cancelled");
+        assert!(requires_interactive_or_elevation(&n5, Some(1)).is_some());
+        let n6 = normalize_for_match("operation completed successfully");
+        assert!(requires_interactive_or_elevation(&n6, Some(1)).is_none());
+    }
+
+    #[test]
+    fn requires_interactive_or_elevation_certificate_vs_msix() {
+        let c1 = normalize_for_match("Signature verification failed");
+        let m1 = requires_interactive_or_elevation(&c1, Some(-1978335189)).unwrap();
+        assert!(m1.contains("certificat"));
+        assert!(!m1.contains("MSIX"));
+        let c2 = normalize_for_match("Certificat non valide 0x80072f8f");
+        let m2 = requires_interactive_or_elevation(&c2, Some(1)).unwrap();
+        assert!(m2.contains("certificat"));
+        let n1 = normalize_for_match("certificate is used in processus");
+        // Do not trigger on generic word alone
+        assert!(requires_interactive_or_elevation(&n1, Some(1)).is_none());
+        // Simulate log with certificate word but no precise signature
+        let log_only = normalize_for_match(
+            "downloaded certificate file but operation completed with different error",
+        );
+        assert!(requires_interactive_or_elevation(&log_only, Some(1234)).is_none());
+    }
+
+    #[test]
+    fn requires_interactive_or_elevation_no_false_positive_cer() {
+        let t1 = normalize_for_match("processus en cours");
+        assert!(requires_interactive_or_elevation(&t1, Some(1)).is_none());
+        let t2 = normalize_for_match("procédure terminée");
+        assert!(requires_interactive_or_elevation(&t2, Some(1)).is_none());
+        let t3 = normalize_for_match("exacerber le problème");
+        assert!(requires_interactive_or_elevation(&t3, Some(1)).is_none());
+        let t4 = normalize_for_match("operation completed successfully");
+        assert!(requires_interactive_or_elevation(&t4, Some(1)).is_none());
+        let t5 = normalize_for_match("certificate is mentioned in log");
+        assert!(requires_interactive_or_elevation(&t5, Some(1)).is_none());
+        let t6 = normalize_for_match("installation cancelled in unrelated step");
+        // cancelled alone without precise signatures
+        assert!(requires_interactive_or_elevation(&t6, Some(1)).is_none());
+        let t7 = normalize_for_match("hash sha256 cert abc123");
+        assert!(requires_interactive_or_elevation(&t7, Some(5)).is_none());
     }
 
     #[test]

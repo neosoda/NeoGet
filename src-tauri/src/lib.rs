@@ -49,18 +49,23 @@ pub fn run() {
             .open(hook_log_path.join("NeoGet.log"))
         {
             use std::io::Write;
-            let _ = writeln!(f, "[{}][neoget][ERROR] {}", chrono::Local::now().format("%Y-%m-%d][%H:%M:%S"), msg);
+            let _ = writeln!(
+                f,
+                "[{}][neoget][ERROR] {}",
+                chrono::Local::now().format("%Y-%m-%d][%H:%M:%S"),
+                msg
+            );
         }
     }));
 
-    tauri::Builder::default()
+    if let Err(err) = tauri::Builder::default()
         .manage(operations::OperationManager::new())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .targets([
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
                     tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
-                        path: log_path,
+                        path: log_path.clone(),
                         file_name: None,
                     }),
                 ])
@@ -105,5 +110,22 @@ pub fn run() {
             commands::set_scheduled_task_enabled,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+    {
+        log::error!("Échec du démarrage de NeoGet : {}", err);
+        eprintln!("Échec du démarrage de NeoGet : {}", err);
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path.join("NeoGet.log"))
+        {
+            use std::io::Write;
+            let _ = writeln!(
+                f,
+                "[{}][neoget][ERROR] Échec du démarrage de NeoGet : {}",
+                chrono::Local::now().format("%Y-%m-%d][%H:%M:%S"),
+                err
+            );
+        }
+        std::process::exit(1);
+    }
 }

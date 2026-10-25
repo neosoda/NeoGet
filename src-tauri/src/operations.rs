@@ -322,7 +322,10 @@ impl OperationManager {
             let result = match tauri::async_runtime::spawn(execute()).await {
                 Ok(result) => result,
                 Err(error) => {
-                    error!("operation_id={} panicked or failed: {}", operation_id, error);
+                    error!(
+                        "operation_id={} panicked or failed: {}",
+                        operation_id, error
+                    );
                     Err(format!("Erreur interne pendant l'opération : {}", error))
                 }
             };

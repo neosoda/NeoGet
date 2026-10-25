@@ -32,15 +32,30 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Rust fmt check
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
+
+      - name: Rust clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+        env:
+          CARGO_TARGET_DIR: src-tauri/target
+
       - name: Rust check
         run: cargo check --manifest-path src-tauri/Cargo.toml
         env:
           CARGO_TARGET_DIR: src-tauri/target
 
       - name: Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+        run: cargo test --manifest-path src-tauri/Cargo.toml
         env:
           CARGO_TARGET_DIR: src-tauri/target
+
+      - name: Node tests
+        run: npm test
+        env:
+          CI: true
 
       - name: Build Tauri app
         run: npm run tauri:build
