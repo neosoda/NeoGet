@@ -76,3 +76,14 @@ npm test: 2 passed
 npm run tauri:build (reconstruit): 
 - neoget.exe 6523904 octets SHA256: 11805AF20D5018BC2A8B1100488415EEC5A881FF013A5E1E62D942233F15ACF4
 - NeoGet_2.3.3_x64-setup.exe 1768849 octets SHA256: 36CB8C84A1F83F268137AF2971BB5FAEDC9C304F64244DFB75EA37C00753D010
+
+## Validation post-correctif (compilation + artefacts)
+cargo fmt --check: OK
+cargo clippy --all-targets -D warnings: OK
+cargo test: lib 21 passed, 0 failed, 1 ignored; bin/doc 0
+npm test: 2 passed
+npm run build: OK
+npm run tauri:build: OK
+Nouveaux artefacts:
+- neoget.exe 6523904 octets SHA256: 94F4613D23E021660420D2AFE90C4AC7089C0DC575F1325D8FD3BD4C17CE67A1
+- NeoGet_2.3.3_x64-setup.exe 1765453 octets SHA256: 1B2FCF354AF89CAE0E3CC7B29025718EA0B11864326C74E4A94A7AA4D611B697
