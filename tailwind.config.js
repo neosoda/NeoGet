@@ -23,7 +23,6 @@ export default {
         accent: alpha('#22D3B6'),
         'accent-dark': alpha('#0F9F8B'),
         lime: alpha('#B7F36B'),
-        orange: alpha('#F59E0B'),
         success: alpha('#34D399'),
         error: alpha('#FB7185'),
         warning: alpha('#FBBF24'),
@@ -37,7 +36,8 @@ export default {
         // #ef4444 to #fb2c36, amber-500 from #f59e0b to #f99c00, slate-800
         // from #1e293b to #1d293d, ...). The shades below are pinned to their
         // v3 values so the application keeps rendering exactly as before the
-        // v3 -> v4 migration.
+        // v3 -> v4 migration. Every default-palette shade the app emits must be
+        // listed here: an unlisted one silently falls back to its v4 value.
         amber: {
           300: alpha('#fcd34d'),
           400: alpha('#fbbf24'),
@@ -46,17 +46,46 @@ export default {
           700: alpha('#b45309'),
           800: alpha('#92400e'),
         },
-        emerald: {
-          700: alpha('#047857'),
+        blue: {
+          400: alpha('#60a5fa'),
+          500: alpha('#3b82f6'),
+          600: alpha('#2563eb'),
         },
         cyan: {
           500: alpha('#06b6d4'),
+          600: alpha('#0891b2'),
+        },
+        emerald: {
+          700: alpha('#047857'),
+        },
+        green: {
+          500: alpha('#22c55e'),
+          600: alpha('#16a34a'),
+        },
+        indigo: {
+          500: alpha('#6366f1'),
+          600: alpha('#4f46e5'),
+        },
+        orange: {
+          DEFAULT: alpha('#F59E0B'),
+          500: alpha('#f97316'),
+          600: alpha('#ea580c'),
+        },
+        pink: {
+          500: alpha('#ec4899'),
+          600: alpha('#db2777'),
+        },
+        purple: {
+          500: alpha('#a855f7'),
+          600: alpha('#9333ea'),
         },
         red: {
+          50: alpha('#fef2f2'),
           200: alpha('#fecaca'),
           400: alpha('#f87171'),
           500: alpha('#ef4444'),
           600: alpha('#dc2626'),
+          700: alpha('#b91c1c'),
           800: alpha('#991b1b'),
           900: alpha('#7f1d1d'),
         },
@@ -64,11 +93,15 @@ export default {
           200: alpha('#fecdd3'),
           300: alpha('#fda4af'),
           500: alpha('#f43f5e'),
+          600: alpha('#e11d48'),
         },
         sky: {
           700: alpha('#0369a1'),
         },
         slate: {
+          50: alpha('#f8fafc'),
+          100: alpha('#f1f5f9'),
+          200: alpha('#e2e8f0'),
           300: alpha('#cbd5e1'),
           400: alpha('#94a3b8'),
           500: alpha('#64748b'),
@@ -79,10 +112,19 @@ export default {
           950: alpha('#020617'),
         },
         teal: {
+          500: alpha('#14b8a6'),
+          600: alpha('#0d9488'),
           700: alpha('#0f766e'),
         },
+        yellow: {
+          500: alpha('#eab308'),
+          600: alpha('#ca8a04'),
+        },
         gray: {
+          50: alpha('#f9fafb'),
+          100: alpha('#f3f4f6'),
           150: alpha('#EEF0F3'),
+          200: alpha('#e5e7eb'),
           250: alpha('#D9DEE5'),
           400: alpha('#9ca3af'),
           450: alpha('#8994A3'),
