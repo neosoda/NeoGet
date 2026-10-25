@@ -1,5 +1,10 @@
-# Move the Cargo build artifacts outside the project directory.
-# This fixes EBUSY errors on Windows with Node.js 26 where Vite's
-# file watcher cannot watch .exe files that are locked by the Rust linker.
+# Cargo build artifacts are kept in a dedicated directory at the repository root
+# (git-ignored) so that the Vite dev server never watches the Rust build tree:
+# on Windows the Rust linker locks the .exe it writes, which makes the watcher
+# fail with EBUSY.
+#
+# The path is deliberately relative: an absolute path would only work on the
+# machine that wrote it and would break every other checkout and CI runner.
+# The Vite watcher excludes this directory explicitly (see vite.config.ts).
 [build]
-target-dir = "C:/Users/NEO.NEO-PC/.cargo/target/neoget"
+target-dir = "target/neoget"

@@ -10,10 +10,15 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: {
-      // Normalize path for Windows: chokidar uses forward slashes internally
+      // Normalize path for Windows: chokidar uses forward slashes internally.
+      // The Rust build tree is excluded: on Windows the linker locks the .exe
+      // it writes, and watching it fails with EBUSY.
       ignored: (filePath: string) => {
         const normalizedPath = filePath.replace(/\\/g, '/')
-        return normalizedPath.includes('/src-tauri/target/')
+        return (
+          normalizedPath.includes('/src-tauri/target/') ||
+          normalizedPath.includes('/target/')
+        )
       },
     },
   },
