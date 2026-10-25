@@ -63,3 +63,8 @@
 - Build final reconstruit:
   - neoget.exe 6523392 octets SHA256: CED917D5563135DA87E74EDE9027356E8DB5A323526DB8F6F2CFE9F1E2EEDF3B
   - NeoGet_2.3.3_x64-setup.exe 1768922 octets SHA256: 7AFB7E54B6CE2FB484AD97A52D90FCDDE42DCE9EC30C76109DDBC9E8D981227C
+
+## Compléments (docs)
+- Commits ajoutés: 95c5a89 fix(audit): single exit code in elevation messages; update hashes/docs, 3c4872a style: fmt, ed3a94c build: rebuild with corrected elevation messages, update hashes
+- Revue de confirmation claude-code APPROVED sur ed3a94c + CI build-windows PASS 6m50s.
+- Décision finale : VALIDATION INCOMPLÈTE — validation technique complète et approuvée par revue indépendante (build, tests, CI, revue), MAIS parcours fonctionnels essentiels non exécutés sur Windows isolé (install/update/uninstall réels, UAC/admin, Toolkit destructif, E2E UI). Procédure de complétion obligatoire avant release : VM Windows 10/11 réinitialisable, WinGet propre, exécuter chaque parcours critiques, capturer logs et statuts ; toute anomalie bloque la release.
