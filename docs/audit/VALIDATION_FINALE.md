@@ -54,12 +54,12 @@
 - Décision finale: APPROUVÉ (avec limites documentées)
 - Risques résiduels: install/update/uninstall réels, UAC/admin, Toolkit destructif (désactivation/restauration), E2E UI non exécutés — nécessitent VM Win10/Win11 isolée/resettable.
 - Un seul jeu de SHA-256 (build final):
-  - neoget.exe 6524416 octets SHA256: 141BEEC1E5DB3F39EAF06007DDDEDF401589774F9C1FC87E7E0F1270624DE46F
-  - NeoGet_2.3.3_x64-setup.exe 1768967 octets SHA256: 863948F2548532CDAFAFC022401156352DD823A4C90253F7B4C9529BD178DD84
+  - neoget.exe 6523392 octets SHA256: CED917D5563135DA87E74EDE9027356E8DB5A323526DB8F6F2CFE9F1E2EEDF3B
+  - NeoGet_2.3.3_x64-setup.exe 1768922 octets SHA256: 7AFB7E54B6CE2FB484AD97A52D90FCDDE42DCE9EC30C76109DDBC9E8D981227C
 
 ## Mise à jour finale (code corrigé, pas de double code)
 - Correction: helper ne suffixe plus le code, chaque caller (install/upgrade/uninstall) ajoute " (code de sortie: N)" une seule fois.
 - Tests: cargo test --lib 21 passed, 0 failed, 1 ignored
 - Build final reconstruit:
-  - neoget.exe 6524416 octets SHA256: 141BEEC1E5DB3F39EAF06007DDDEDF401589774F9C1FC87E7E0F1270624DE46F
-  - NeoGet_2.3.3_x64-setup.exe 1768967 octets SHA256: 863948F2548532CDAFAFC022401156352DD823A4C90253F7B4C9529BD178DD84
+  - neoget.exe 6523392 octets SHA256: CED917D5563135DA87E74EDE9027356E8DB5A323526DB8F6F2CFE9F1E2EEDF3B
+  - NeoGet_2.3.3_x64-setup.exe 1768922 octets SHA256: 7AFB7E54B6CE2FB484AD97A52D90FCDDE42DCE9EC30C76109DDBC9E8D981227C
