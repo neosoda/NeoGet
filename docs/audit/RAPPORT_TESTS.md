@@ -69,3 +69,10 @@ Code retour: 0
 - Réels: npm test (2/2), cargo test --lib (21 passed/0 failed/1 ignored), cargo fmt/clippy, npm run build, npm run tauri:build avec empreintes SHA-256, smoke test exe, winget search vlc (lecture seule)
 - Simulés: aucun marqué comme réel
 - Non exécutés (interdits sur poste dev): install/uninstall/upgrade réels, tweaks registre/cleaning/AppX/tâches planifiées/UAC. Procédure: VM Windows réinitialisable avec WinGet propre, exécuter parcours critiques, capturer logs.
+
+## Mise à jour finale - empreintes + compteurs
+cargo test --lib: 21 passed, 0 failed, 1 ignored
+npm test: 2 passed
+npm run tauri:build (reconstruit): 
+- neoget.exe 6523904 octets SHA256: 11805AF20D5018BC2A8B1100488415EEC5A881FF013A5E1E62D942233F15ACF4
+- NeoGet_2.3.3_x64-setup.exe 1768849 octets SHA256: 36CB8C84A1F83F268137AF2971BB5FAEDC9C304F64244DFB75EA37C00753D010
