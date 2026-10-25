@@ -4,6 +4,20 @@ Tous les changements importants de ce projet sont documentés dans ce fichier.
 
 Le format suit [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) et le versioning suit [Semantic Versioning](https://semver.org/).
 
+## [Non publié]
+
+### ♻️ Maintenance des dépendances
+- **Vite 5 → 8** : migration complète (Rolldown, Oxc, Lightning CSS), `@vitejs/plugin-react` 4 → 6 (suppression de Babel), TypeScript 5.9 → 7.0, React 19.3.
+- **Tailwind CSS 3 → 4** : `@tailwindcss/vite` remplace la chaîne PostCSS, `postcss` et `autoprefixer` supprimés. Rendu visuel préservé utilitaire par utilitaire (échelle `shadow-*`/`blur-*`, couleur de bordure par défaut).
+- **Corrections révélées** : les dégradés Tailwind définis dans `software.json` n'étaient jamais générés en CSS (globs `content` trop étroits) — ils le sont désormais. `tsc -b` masquait `vite.config.ts` avec un `vite.config.js` compilé à la racine.
+- ** reproductibilité** : `src-tauri/Cargo.lock` est versionné et la CI construit en `--locked`.
+- **Sécurité** : `npm audit` passe de 1 vulnérabilité modérée à **0**. Audit Rust ajouté en CI (`rustsec/audit-check`), avec les deux exceptions justifiées (dépendance Linux non corrigible, crate non maintenu).
+- **CI** : Node 24, `npm audit`, `npm test`, `cargo fmt`/`clippy`/`test` en mode verrouillé.
+- **Portabilité** : plus aucun chemin absolu codé en dur dans les scripts de build et de release.
+- Détail complet : [docs/DEPENDENCY_MAINTENANCE.md](DEPENDENCY_MAINTENANCE.md).
+
+---
+
 ## [2.3.4] — 2026-10-25
 
 ### 🐛 Corrections WinGet
