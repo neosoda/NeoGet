@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="460" viewBox="0 0 1400 460" role="img" aria-labelledby="title desc">
+  <title id="title">NeoGet — Votre Windows, sans les complications.</title>
+  <desc id="desc">Bannière de NeoGet, gestionnaire de logiciels WinGet et boîte à outils Windows. Style sombre bleu et turquoise.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#071116"/><stop offset="54%" stop-color="#0b1e29"/><stop offset="100%" stop-color="#0d2832"/></linearGradient>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6ee7b7"/><stop offset="100%" stop-color="#22d3ee"/></linearGradient>
+    <linearGradient id="outline" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#5eead4" stop-opacity=".50"/><stop offset="100%" stop-color="#0ea5e9" stop-opacity=".05"/></linearGradient>
+    <radialGradient id="glow"><stop offset="0%" stop-color="#0d9488" stop-opacity=".24"/><stop offset="100%" stop-color="#0d9488" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="#9dd7e7" stroke-opacity=".055" stroke-width="1"/></pattern>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="16"/></filter>
+    <clipPath id="clip"><rect width="1400" height="460" rx="24"/></clipPath>
+  </defs>
+  <g clip-path="url(#clip)">
+    <rect width="1400" height="460" fill="url(#bg)"/>
+    <rect width="1400" height="460" fill="url(#grid)"/>
+    <circle cx="1102" cy="217" r="420" fill="url(#glow)"/>
+    <path d="M0 460 360 100 780 460" fill="none" stroke="#2dd4bf" stroke-opacity=".07" stroke-width="2"/>
+    <path d="M940-120 1500 440M1080-120 1510 320" fill="none" stroke="#67e8f9" stroke-opacity=".07" stroke-width="2"/>
+    <g transform="translate(75 75)">
+      <rect width="66" height="66" rx="17" fill="#153840" stroke="#52dbc2" stroke-opacity=".6"/>
+      <path d="M18 22 33 14 48 22 33 30Z M18 22V43L33 51V30 M48 22V43L33 51" fill="none" stroke="url(#a)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="54" cy="11" r="6" fill="#b7f77d"/>
+    </g>
+    <text x="160" y="116" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="3.2" fill="#69dfd2">NEOSODA / WINDOWS TOOLS</text>
+    <text x="75" y="250" font-family="Segoe UI, Arial, sans-serif" font-size="105" letter-spacing="-5" font-weight="800" fill="#f5fbfc">Neo<tspan fill="url(#a)">Get</tspan></text>
+    <rect x="77" y="276" width="51" height="4" rx="2" fill="url(#a)"/>
+    <text x="75" y="323" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" fill="#ecf8fa">Installez. Maintenez. Optimisez.</text>
+    <text x="77" y="359" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#92aebb">WinGet et les outils Windows, réunis dans une seule application.</text>
+    <g font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing=".5">
+      <rect x="75" y="392" width="120" height="32" rx="16" fill="#14363b" stroke="#1d6465"/>
+      <text x="135" y="413" text-anchor="middle" fill="#99f6e4">WINGET</text>
+      <rect x="206" y="392" width="112" height="32" rx="16" fill="#153039" stroke="#2b4b5e"/>
+      <text x="262" y="413" text-anchor="middle" fill="#b8d4e1">TAURI 2</text>
+      <rect x="329" y="392" width="109" height="32" rx="16" fill="#153039" stroke="#2b4b5e"/>
+      <text x="384" y="413" text-anchor="middle" fill="#b8d4e1">RUST</text>
+    </g>
+    <g transform="translate(817 67)">
+      <rect x="6" y="18" width="496" height="351" rx="24" fill="#000" opacity=".35" filter="url(#shadow)"/>
+      <rect x="0" y="0" width="496" height="351" rx="24" fill="#101f2a" stroke="url(#outline)" stroke-width="2"/>
+      <rect x="1" y="1" width="494" height="55" rx="23" fill="#152c36"/>
+      <path d="M1 55H495" stroke="#284751"/>
+      <circle cx="29" cy="29" r="6" fill="#355763"/><circle cx="50" cy="29" r="6" fill="#355763"/><circle cx="71" cy="29" r="6" fill="#355763"/>
+      <text x="248" y="35" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="2.6" fill="#a9c5cf">YOUR SOFTWARE · UNDER CONTROL</text>
+      <g font-family="Segoe UI, Arial, sans-serif">
+        <rect x="27" y="80" width="442" height="71" rx="12" fill="#15353c" stroke="#2e5e60"/>
+        <rect x="45" y="96" width="42" height="40" rx="10" fill="#1b625d"/>
+        <path d="M54 116H77M66 104V128" stroke="#8af4d7" stroke-width="3" stroke-linecap="round"/>
+        <text x="106" y="109" font-weight="700" font-size="17" fill="#e6faf8">01  Découvrir</text>
+        <text x="106" y="131" font-size="13" fill="#98bac3">Rechercher et sélectionner</text>
+        <circle cx="439" cy="116" r="7" fill="#57dcba"/>
+        <rect x="27" y="164" width="442" height="71" rx="12" fill="#132c35" stroke="#29505a"/>
+        <rect x="45" y="180" width="42" height="40" rx="10" fill="#1d4855"/>
+        <path d="M65 188V208 M56 201 65 210 74 201 M54 215H77" fill="none" stroke="#7dd3fc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="106" y="194" font-weight="700" font-size="17" fill="#e6faf8">02  Installer</text>
+        <text x="106" y="215" font-size="13" fill="#98bac3">Une file d'opérations claire</text>
+        <circle cx="439" cy="200" r="7" fill="#57dcba"/>
+        <rect x="27" y="248" width="442" height="71" rx="12" fill="#132c35" stroke="#29505a"/>
+        <rect x="45" y="264" width="42" height="40" rx="10" fill="#1d4855"/>
+        <path d="M56 281A12 12 0 1 1 55 291M56 281H65M56 281V272" fill="none" stroke="#7dd3fc" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="106" y="278" font-weight="700" font-size="17" fill="#e6faf8">03  Maintenir</text>
+        <text x="106" y="300" font-size="13" fill="#98bac3">Mettre à jour et optimiser</text>
+        <circle cx="439" cy="284" r="7" fill="#57dcba"/>
+      </g>
+    </g>
+    <rect x="1" y="1" width="1398" height="458" rx="23" fill="none" stroke="#8edbd3" stroke-opacity=".19" stroke-width="2"/>
+  </g>
+</svg>
