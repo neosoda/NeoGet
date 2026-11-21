@@ -191,7 +191,7 @@ Les opérations d'installation, mise à jour et désinstallation sont centralis�
 
 ## 📄 Licences et droits
 
-Ce dépôt contient du code original NeoGet et des projets tiers soumis à des licences différentes (notamment **GPLv3** pour optimizerDuck et **PolyForm Shield 1.0.0** pour Winhance). **Il n'existe pas de licence unique applicable à l'ensemble du dépôt.** Voir [LICENSING.md](LICENSING.md) pour les droits, les composants et les précautions de redistribution.
+Le code original NeoGet est publié avec **droits réservés** (voir [LICENSE](LICENSE)). Les copies de référence de Winhance (**PolyForm Shield 1.0.0**) et d'optimizerDuck (**GPLv3**) ont été retirées de l'arborescence actuelle : elles n'étaient pas utilisées par les scripts de compilation examinés. Leurs licences restent applicables à leurs sources et aux anciennes révisions qui les contiennent. Voir [LICENSING.md](LICENSING.md) pour le détail des droits et les précautions avant redistribution.
 
 ## 🤝 Contribuer
 
