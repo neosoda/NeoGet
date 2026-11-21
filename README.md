@@ -189,6 +189,10 @@ Les opérations d'installation, mise à jour et désinstallation sont centralis�
 | [Design system](docs/DESIGN_SYSTEM.md) | Principes de l'interface et conventions visuelles |
 | [Maintenance des dépendances](docs/DEPENDENCY_MAINTENANCE.md) | Mises à niveau techniques et qualité des builds |
 
+## 📄 Licences et droits
+
+Ce dépôt contient du code original NeoGet et des projets tiers soumis à des licences différentes (notamment **GPLv3** pour optimizerDuck et **PolyForm Shield 1.0.0** pour Winhance). **Il n'existe pas de licence unique applicable à l'ensemble du dépôt.** Voir [LICENSING.md](LICENSING.md) pour les droits, les composants et les précautions de redistribution.
+
 ## 🤝 Contribuer
 
 Une idée pour améliorer NeoGet ? Un bug à signaler ? Les **[issues](https://github.com/neosoda/NeoGet/issues)** et les **[pull requests](https://github.com/neosoda/NeoGet/pulls)** sont les bienvenues.
