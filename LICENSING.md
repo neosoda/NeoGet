@@ -1,19 +1,26 @@
-# Code ownership and third-party licensing
+# NeoGet — Licensing and source provenance
 
-NeoGet is a **mixed-licensing repository**. There is **no single license** granting rights to every file in this repository.
+NeoGet contains original code and dependencies or assets governed by their respective owners' licenses. **No single license overrides the rights of third-party authors.**
 
-## Original NeoGet code
+## Original NeoGet components
 
-Copyright (c) 2026 Neosoda. All rights reserved.
+Copyright (c) 2026 Neosoda. All rights reserved for original work owned by Neosoda. See [LICENSE](LICENSE).
 
-Unless a specific file indicates otherwise, Neosoda-owned original source code, artwork and documentation are not offered under a public redistribution or commercial-hosting license. For commercial or redistribution permissions, contact the maintainer. This statement does not revoke earlier valid grants, if any.
+No general permission to copy, modify, redistribute, sublicense, sell, or commercially host Neosoda's independently authored code is granted beyond what is required by GitHub's terms or specifically allowed in a separate written agreement. This does not withdraw existing valid permission granted for any previous version.
 
-## Separately licensed upstream trees
+## Upstream reference projects — not part of the current repository tree
 
-- `_A INTEGRER/optimizerDuck-master/`: optimizerDuck by fatDuck / itsfatduck — **GNU GPL v3**, according to `_A INTEGRER/optimizerDuck-master/LICENSE`. The project's own `TERMS.md` also applies where legally relevant.
-- `_A INTEGRER/Winhance-main/`: Winhance by Marco du Plessis — **PolyForm Shield License 1.0.0**, according to `_A INTEGRER/Winhance-main/LICENSE.txt`.
-- These trees include their own copyright notices and third-party notices, which must be preserved. Do not assume the terms for original NeoGet code apply to these upstream trees or vice versa.
+The following full-source snapshots used to be tracked in `_A INTEGRER/` for possible future evaluation. **They have been removed from the current tree** because the reviewed NeoGet frontend, Tauri/Rust build configuration, release script and Windows CI do not reference or package those directories.
 
-**Important:** The presence of third-party source trees does not by itself establish whether their code is included in the built NeoGet executable. Before publishing a binary or redistributing an integrated derivative, review the actual build inputs and all applicable licenses, especially GPL compatibility and PolyForm Shield restrictions.
+- [optimizerDuck](https://github.com/itsfatduck/optimizerDuck), by fatDuck / itsfatduck — **GNU GPL v3**, per the upstream LICENSE at the previously imported revision.
+- [Winhance](https://github.com/memstechtips/Winhance), by Marco du Plessis — **PolyForm Shield License 1.0.0**, per the upstream LICENSE.txt at the previously imported revision.
 
-Third-party assets, dependencies and any other external code in this repository remain governed by their own rights and licenses. This document is a rights map, not a new license or permission from upstream authors.
+These works were not relicensed, and their copyright and license obligations remain intact for any use of the historical copies, derived code, or independent integrations. Removing their source snapshots from the current Git tree **does not purge them from the Git history**, which retains earlier revisions.
+
+## Packaging and compliance
+
+NeoGet's standard build uses `src/` (React/TypeScript), `src-tauri/` (Tauri/Rust), `package.json`, and `src-tauri/tauri.conf.json`. The `_A INTEGRER/` directory has no apparent build references in the reviewed build scripts or CI, and was already ignored by `.gitignore`. This is **a source/build-configuration review, not a forensic verification of every binary or copied code fragment**.
+
+Before a commercial release or third-party redistribution, verify dependency and asset licenses, source provenance of any incorporated snippets, and the contents of the actual built binaries.
+
+The original code's reserved-rights notice does **not** apply to upstream projects or to other authors' licensed material.
